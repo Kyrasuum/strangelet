@@ -1,8 +1,10 @@
 package display
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
+
+	"strangelet/internal/app"
 
 	"github.com/Kyrasuum/cview"
 	"github.com/gdamore/tcell/v2"
@@ -14,16 +16,26 @@ var (
 	bgColor  tcell.Color
 
 	filebrowserW int = 20
+
+	CurFilebrowser *Filebrowser
 )
 
 type Filebrowser struct {
 	*cview.TreeView
 	root *cview.TreeNode
 
+	parentFlex *cview.Flex
+
 	rootDir string
 }
 
 func (fb *Filebrowser) InitFilebrowser(subFlex *cview.Flex) {
+	//enforce only one
+	if CurFilebrowser != nil {
+		return
+	}
+
+	//init colors
 	if dirColor == 0 {
 		dirColor = tcell.NewRGBColor(220, 100, 100)
 	}
@@ -34,6 +46,7 @@ func (fb *Filebrowser) InitFilebrowser(subFlex *cview.Flex) {
 		bgColor = tcell.NewRGBColor(30, 30, 30)
 	}
 
+	//setup tree
 	fb.rootDir = "."
 	fb.root = cview.NewTreeNode(fb.rootDir)
 	fb.root.SetColor(dirColor)
@@ -49,6 +62,10 @@ func (fb *Filebrowser) InitFilebrowser(subFlex *cview.Flex) {
 	fb.TreeView.SetSelectedFunc(fb.OpenDirectory)
 
 	subFlex.AddItem(fb, filebrowserW, 1, false)
+	fb.parentFlex = subFlex
+	CurFilebrowser = fb
+	// Default to closed
+	fb.ToggleDisplay()
 }
 
 func (fb *Filebrowser) IsVisible() bool {
@@ -58,7 +75,7 @@ func (fb *Filebrowser) IsVisible() bool {
 // A helper function which adds the files and directories of the given path
 // to the given target node.
 func (fb *Filebrowser) AddDirEntry(target *cview.TreeNode, path string) (err error) {
-	files, err := ioutil.ReadDir(path)
+	files, err := os.ReadDir(path)
 	if err != nil {
 		return err
 	}
@@ -98,16 +115,22 @@ func (fb *Filebrowser) OpenDirectory(node *cview.TreeNode) {
 	}
 }
 
-func (fb *Filebrowser) HandleInput(event *tcell.EventKey) *tcell.EventKey {
-	return event
+func (fb *Filebrowser) HandleInput(tevent *tcell.EventKey) *tcell.EventKey {
+	if tevent.Key() == tcell.KeyCtrlD {
+		fb.ToggleDisplay()
+		return nil
+	}
+	return tevent
 }
 
-func (fb *Filebrowser) ToggleDisplay(subFlex *cview.Flex) {
+func (fb *Filebrowser) ToggleDisplay() {
 	if fb.TreeView.Box.GetVisible() {
-		subFlex.ResizeItem(fb, -1, 0)
+		fb.parentFlex.ResizeItem(fb, -1, 0)
 		fb.TreeView.Box.SetVisible(false)
+		app.SetFocus(fb)
 	} else {
-		subFlex.ResizeItem(fb, filebrowserW, 1)
+		fb.parentFlex.ResizeItem(fb, filebrowserW, 1)
 		fb.TreeView.Box.SetVisible(true)
+		app.SetFocus(nil)
 	}
 }
