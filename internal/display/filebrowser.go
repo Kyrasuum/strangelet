@@ -15,7 +15,7 @@ var (
 	filColor tcell.Color
 	bgColor  tcell.Color
 
-	filebrowserW int = 20
+	filebrowserW int = 30
 
 	CurFilebrowser *Filebrowser
 )

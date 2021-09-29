@@ -1,0 +1,3 @@
+[submodule "external/cview"]
+	path = external/cview
+	url = https://github.com/Kyrasuum/cview.git

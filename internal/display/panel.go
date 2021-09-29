@@ -41,9 +41,10 @@ func (panel *Panel) InitPanel(paneflex *cview.Flex, index int) {
 	panel.TabbedPanels.SetTabBackgroundColorFocused(panelTabBGColorF)
 	panel.TabbedPanels.SetTabTextColor(panelTabFGColor)
 	panel.TabbedPanels.SetTabTextColorFocused(panelTabFGColorF)
+	panel.TabbedPanels.SetTabSwitcherHeight(1)
 
 	//default tabs
-	for panelIndex := 0; panelIndex < 5; panelIndex++ {
+	for panelIndex := 0; panelIndex < 20; panelIndex++ {
 		panel.AddTab(panelIndex)
 	}
 

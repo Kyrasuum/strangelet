@@ -1,12 +1,20 @@
+# Tools files
+tools/build-version
+tools/build-date
+
 # Binaries for programs and plugins
+binaries/
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+strangelet
+strangelet.*
 
 # Test binary, built with `go test -c`
 *.test
+test/
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
