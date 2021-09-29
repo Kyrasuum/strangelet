@@ -7,11 +7,13 @@ import (
 
 var ()
 
-type Buffer struct {
+type buffer struct {
 	*cview.TextView
 }
 
-func (buff *Buffer) InitBuffer(subFlex *cview.Flex) {
+func NewBuffer(subFlex *cview.Flex) (buff *buffer) {
+	buff = &buffer{}
+
 	buff.TextView = cview.NewTextView()
 	buff.TextView.SetTextAlign(cview.AlignLeft)
 	buff.TextView.SetText("Buffer Content")
@@ -19,4 +21,6 @@ func (buff *Buffer) InitBuffer(subFlex *cview.Flex) {
 	buff.TextView.SetTextColor(tcell.NewRGBColor(230, 230, 230))
 
 	subFlex.AddItem(buff.TextView, 0, 1, false)
+
+	return buff
 }

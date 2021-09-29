@@ -10,11 +10,13 @@ var (
 	statusBarFGColor tcell.Color
 )
 
-type StatusBar struct {
+type statusBar struct {
 	statusbar *cview.TextView
 }
 
-func (stat *StatusBar) InitStatusBar(flex *cview.Flex) {
+func NewStatusBar(flex *cview.Flex) (stat *statusBar) {
+	stat = &statusBar{}
+
 	if statusBarBGColor == 0 {
 		statusBarBGColor = tcell.NewRGBColor(160, 160, 160)
 	}
@@ -29,4 +31,6 @@ func (stat *StatusBar) InitStatusBar(flex *cview.Flex) {
 	stat.statusbar.SetTextColor(statusBarFGColor)
 
 	flex.AddItem(stat.statusbar, 1, 1, false)
+
+	return stat
 }

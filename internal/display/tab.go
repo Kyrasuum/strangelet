@@ -3,7 +3,7 @@ package display
 import (
 	"fmt"
 
-	"strangelet/internal/app"
+	"strangelet/pkg/app"
 
 	"github.com/Kyrasuum/cview"
 	"github.com/gdamore/tcell/v2"
@@ -11,40 +11,44 @@ import (
 
 var ()
 
-type Tab struct {
+type tab struct {
 	*cview.Flex
 	row *cview.Flex
 
 	name  string
 	label string
 
-	buffer Buffer
-	gutter Gutter
-	status StatusBar
+	buffer *buffer
+	gutter *gutter
+	status *statusBar
 }
 
-func (tab *Tab) InitTab(tabs *cview.TabbedPanels, index int) {
-	tab.Flex = cview.NewFlex()
-	tab.Flex.SetDirection(cview.FlexRow)
-	tab.row = cview.NewFlex()
+func NewTab(tabs *cview.TabbedPanels, index int) (t *tab) {
+	t = &tab{}
 
-	tab.gutter.InitGutter(tab.row)
-	tab.buffer.InitBuffer(tab.row)
-	tab.Flex.AddItem(tab.row, 0, 1, false)
-	tab.status.InitStatusBar(tab.Flex)
+	t.Flex = cview.NewFlex()
+	t.Flex.SetDirection(cview.FlexRow)
+	t.row = cview.NewFlex()
 
-	tab.name = fmt.Sprintf("tab-%d", index)
-	tab.label = fmt.Sprintf("Tab #%d", index)
+	t.gutter = NewGutter(t.row)
+	t.buffer = NewBuffer(t.row)
+	t.Flex.AddItem(t.row, 0, 1, false)
+	t.status = NewStatusBar(t.Flex)
 
-	tabs.AddTab(tab.name, tab.label, tab)
-	tabs.SetCurrentTab(tab.name)
-	app.SetFocus(tab)
+	t.name = fmt.Sprintf("tab-%d", index)
+	t.label = fmt.Sprintf("Tab #%d", index)
+
+	tabs.AddTab(t.name, t.label, t)
+	tabs.SetCurrentTab(t.name)
+	app.CurApp.SetFocus(t)
+
+	return t
 }
 
-func (tab *Tab) HandleInput(tevent *tcell.EventKey) (retEvent *tcell.EventKey) {
+func (tab *tab) HandleInput(tevent *tcell.EventKey) (retEvent *tcell.EventKey) {
 	return tevent
 }
 
-func (tab *Tab) GetName() string {
+func (tab *tab) GetName() string {
 	return tab.name
 }

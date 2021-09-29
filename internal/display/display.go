@@ -1,6 +1,8 @@
 package display
 
 import (
+	"strangelet/pkg/app"
+
 	"strangelet/internal/event"
 
 	"github.com/Kyrasuum/cview"
@@ -9,27 +11,31 @@ import (
 
 var (
 	displayFileBrowser = false
-	CurDisplay         *Display
+	curDisplay         *display
 )
 
-type Display struct {
+type display struct {
+	app.Display
 	*cview.Flex
 
-	cbar    CommandBar
+	cbar    *commandBar
 	subFlex *cview.Flex
 
-	fb Filebrowser
+	fb  *filebrowser
+	log *logWin
 
 	rows   *cview.Flex
 	cols   []*cview.Flex
-	panels []Panel
+	panels []*panel
 }
 
-func (dplay *Display) InitDisplay(app *cview.Application) {
+func NewDisplay(app *cview.Application) (dplay *display) {
 	//enforce only one
-	if CurDisplay != nil {
-		return
+	if curDisplay != nil {
+		return curDisplay
 	}
+	dplay = &display{}
+
 	//handle input
 	app.SetInputCapture(dplay.HandleInput)
 
@@ -37,7 +43,7 @@ func (dplay *Display) InitDisplay(app *cview.Application) {
 	dplay.Flex = cview.NewFlex()
 	dplay.Flex.SetDirection(cview.FlexRow)
 	dplay.subFlex = cview.NewFlex()
-	dplay.fb.InitFilebrowser(dplay.subFlex)
+	dplay.fb = NewFilebrowser(dplay.subFlex)
 	dplay.Flex.AddItem(dplay.subFlex, 0, 1, false)
 
 	//initialize rows space
@@ -58,14 +64,17 @@ func (dplay *Display) InitDisplay(app *cview.Application) {
 
 	//put it all together
 	dplay.subFlex.AddItem(dplay.rows, 0, 1, false)
-	dplay.cbar.InitCommandBar(dplay.Flex)
+	dplay.cbar = NewCommandBar(dplay.Flex)
+	dplay.log = NewLogWin(dplay.subFlex)
 
 	//set root display area
 	app.SetRoot(dplay, true)
-	CurDisplay = dplay
+	curDisplay = dplay
+
+	return dplay
 }
 
-func (dplay *Display) AddPanelRow() (cols *cview.Flex) {
+func (dplay *display) AddPanelRow() (cols *cview.Flex) {
 	cols = cview.NewFlex()
 
 	dplay.cols = append(dplay.cols, cols)
@@ -74,13 +83,12 @@ func (dplay *Display) AddPanelRow() (cols *cview.Flex) {
 	return cols
 }
 
-func (dplay *Display) AddPanelToRow(row *cview.Flex, panelIndex int) {
-	var panel Panel
-	panel.InitPanel(row, panelIndex)
-	dplay.panels = append(dplay.panels, panel)
+func (dplay *display) AddPanelToRow(row *cview.Flex, panelIndex int) {
+	pan := NewPanel(row, panelIndex)
+	dplay.panels = append(dplay.panels, pan)
 }
 
-func (dplay *Display) HandleInput(tevent *tcell.EventKey) (retEvent *tcell.EventKey) {
+func (dplay *display) HandleInput(tevent *tcell.EventKey) (retEvent *tcell.EventKey) {
 	if tevent.Key() == tcell.KeyCtrlQ {
 		event.Quit()
 		return nil
@@ -92,6 +100,10 @@ func (dplay *Display) HandleInput(tevent *tcell.EventKey) (retEvent *tcell.Event
 		return nil
 	}
 	retEvent = dplay.fb.HandleInput(tevent)
+	if retEvent != tevent {
+		return retEvent
+	}
+	retEvent = dplay.log.HandleInput(tevent)
 	if retEvent != tevent {
 		return retEvent
 	}

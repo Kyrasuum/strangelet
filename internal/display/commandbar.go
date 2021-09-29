@@ -10,11 +10,13 @@ var (
 	commandBarFGColor tcell.Color
 )
 
-type CommandBar struct {
+type commandBar struct {
 	*cview.TextView
 }
 
-func (cbar *CommandBar) InitCommandBar(flex *cview.Flex) {
+func NewCommandBar(flex *cview.Flex) (cbar *commandBar) {
+	cbar = &commandBar{}
+
 	if commandBarBGColor == 0 {
 		commandBarBGColor = tcell.NewRGBColor(20, 20, 20)
 	}
@@ -29,4 +31,6 @@ func (cbar *CommandBar) InitCommandBar(flex *cview.Flex) {
 	cbar.TextView.SetTextColor(commandBarFGColor)
 
 	flex.AddItem(cbar.TextView, 1, 1, false)
+
+	return cbar
 }

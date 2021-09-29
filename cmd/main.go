@@ -2,19 +2,13 @@ package main
 
 import (
 	"strangelet/internal/app"
-	"strangelet/internal/display"
-
-	"github.com/Kyrasuum/cview"
+	"strangelet/internal/sync"
 )
 
-var (
-	frame display.Display
-)
+var ()
 
 func main() {
-	ap := cview.NewApplication()
-	app.InitApp(ap)
-	frame.InitDisplay(ap)
+	app.NewApp()
 
-	app.StartApp()
+	sync.Wait()
 }

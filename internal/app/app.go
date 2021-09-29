@@ -1,40 +1,62 @@
 package app
 
 import (
+	iapp "strangelet/pkg/app"
+
+	"strangelet/internal/display"
 	"strangelet/internal/event"
-	"strangelet/internal/sync"
 	"strangelet/internal/util"
 
 	"github.com/Kyrasuum/cview"
 )
 
 var (
-	app      *cview.Application
+	cviewApp *cview.Application
+	frame    iapp.Display
+
 	focusStk *util.Stack
 	focusMap map[cview.Primitive]struct{}
 )
 
-func InitApp(ap *cview.Application) {
-	app = ap
-	defer app.HandlePanic()
+type application struct {
+	iapp.App
+}
 
-	app.EnableMouse(true)
-	app.SetBeforeFocusFunc(focusHook)
+func NewApp() (app application) {
+	if cviewApp != nil {
+		return iapp.CurApp.(application)
+	}
 
-	event.InitEvents(app)
+	app = application{}
+	cviewApp = cview.NewApplication()
+	go app.startApp()
+
+	defer cviewApp.HandlePanic()
+
+	cviewApp.EnableMouse(true)
+	cviewApp.SetBeforeFocusFunc(app.focusHook)
+
+	event.InitEvents(cviewApp)
 
 	focusStk = &util.Stack{}
 	focusMap = make(map[cview.Primitive]struct{})
+	iapp.CurApp = app
+
+	frame = display.NewDisplay(cviewApp)
+
+	return app
 }
 
-func StartApp() {
-	if err := app.Run(); err != nil {
+func (app application) startApp() {
+	defer cviewApp.HandlePanic()
+
+	if err := cviewApp.Run(); err != nil {
 		panic(err)
 	}
-	sync.Wait()
 }
 
-func focusHook(prim cview.Primitive) bool {
+func (app application) focusHook(prim cview.Primitive) bool {
+	defer cviewApp.HandlePanic()
 	// if prim is nil then we are removing focus from current object
 	if prim == nil {
 		// attempt to set focus to next in stack
@@ -70,10 +92,12 @@ func focusHook(prim cview.Primitive) bool {
 	return true
 }
 
-func SetFocus(prim cview.Primitive) {
-	app.SetFocus(prim)
+func (app application) SetFocus(prim cview.Primitive) {
+	defer cviewApp.HandlePanic()
+	cviewApp.SetFocus(prim)
 }
 
-func GetFocus() (prim cview.Primitive) {
-	return app.GetFocus()
+func (app application) GetFocus() (prim cview.Primitive) {
+	defer cviewApp.HandlePanic()
+	return cviewApp.GetFocus()
 }

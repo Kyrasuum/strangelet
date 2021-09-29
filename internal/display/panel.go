@@ -12,12 +12,14 @@ var (
 	panelTabFGColorF tcell.Color
 )
 
-type Panel struct {
+type panel struct {
 	*cview.TabbedPanels
 	tabs map[string]interface{}
 }
 
-func (panel *Panel) InitPanel(paneflex *cview.Flex, index int) {
+func NewPanel(paneflex *cview.Flex, index int) (pan *panel) {
+	pan = &panel{}
+
 	//init colors
 	if panelTabBGColor == 0 {
 		panelTabBGColor = tcell.NewRGBColor(200, 0, 0)
@@ -33,38 +35,39 @@ func (panel *Panel) InitPanel(paneflex *cview.Flex, index int) {
 	}
 
 	//setup map
-	panel.tabs = make(map[string]interface{})
+	pan.tabs = make(map[string]interface{})
 
 	//set colors
-	panel.TabbedPanels = cview.NewTabbedPanels()
-	panel.TabbedPanels.SetTabBackgroundColor(panelTabBGColor)
-	panel.TabbedPanels.SetTabBackgroundColorFocused(panelTabBGColorF)
-	panel.TabbedPanels.SetTabTextColor(panelTabFGColor)
-	panel.TabbedPanels.SetTabTextColorFocused(panelTabFGColorF)
-	panel.TabbedPanels.SetTabSwitcherHeight(1)
+	pan.TabbedPanels = cview.NewTabbedPanels()
+	pan.TabbedPanels.SetTabBackgroundColor(panelTabBGColor)
+	pan.TabbedPanels.SetTabBackgroundColorFocused(panelTabBGColorF)
+	pan.TabbedPanels.SetTabTextColor(panelTabFGColor)
+	pan.TabbedPanels.SetTabTextColorFocused(panelTabFGColorF)
+	pan.TabbedPanels.SetTabSwitcherHeight(1)
 
 	//default tabs
 	for panelIndex := 0; panelIndex < 20; panelIndex++ {
-		panel.AddTab(panelIndex)
+		pan.AddTab(panelIndex)
 	}
 
 	//add to paneflex
-	paneflex.AddItem(panel.TabbedPanels, 0, 1, false)
+	paneflex.AddItem(pan.TabbedPanels, 0, 1, false)
+
+	return pan
 }
 
-func (panel *Panel) AddTab(tabIndex int) {
-	var tab Tab
-	tab.InitTab(panel.TabbedPanels, tabIndex)
-	panel.tabs[tab.GetName()] = tab
+func (panel *panel) AddTab(tabIndex int) {
+	t := NewTab(panel.TabbedPanels, tabIndex)
+	panel.tabs[t.GetName()] = t
 }
 
-func (panel *Panel) GetCurrentTab() (tab *Tab) {
+func (panel *panel) GetCurrentTab() (t *tab) {
 	index := panel.TabbedPanels.GetCurrentTab()
-	elem := panel.tabs[index].(Tab)
+	elem := panel.tabs[index].(tab)
 	return &elem
 }
 
-func (panel *Panel) HandleInput(tevent *tcell.EventKey) (retEvent *tcell.EventKey) {
+func (panel *panel) HandleInput(tevent *tcell.EventKey) (retEvent *tcell.EventKey) {
 	retEvent = panel.GetCurrentTab().HandleInput(tevent)
 	if retEvent != tevent {
 		return retEvent

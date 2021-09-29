@@ -10,11 +10,13 @@ var (
 	gutterFGColor tcell.Color
 )
 
-type Gutter struct {
+type gutter struct {
 	*cview.TextView
 }
 
-func (gutt *Gutter) InitGutter(subFlex *cview.Flex) {
+func NewGutter(subFlex *cview.Flex) (gutt *gutter) {
+	gutt = &gutter{}
+
 	if gutterBGColor == 0 {
 		gutterBGColor = tcell.NewRGBColor(40, 40, 40)
 	}
@@ -28,4 +30,6 @@ func (gutt *Gutter) InitGutter(subFlex *cview.Flex) {
 	gutt.TextView.SetTextColor(gutterFGColor)
 
 	subFlex.AddItem(gutt.TextView, 2, 1, false)
+
+	return gutt
 }
