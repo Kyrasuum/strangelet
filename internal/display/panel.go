@@ -1,6 +1,9 @@
 package display
 
 import (
+	buff "strangelet/internal/buffer"
+	"strangelet/pkg/app"
+
 	"github.com/Kyrasuum/cview"
 	"github.com/gdamore/tcell/v2"
 )
@@ -17,7 +20,7 @@ type panel struct {
 	tabs map[string]interface{}
 }
 
-func NewPanel(paneflex *cview.Flex, index int) (pan *panel) {
+func NewPanel(paneflex *cview.Flex) (pan *panel) {
 	pan = &panel{}
 
 	//init colors
@@ -45,26 +48,53 @@ func NewPanel(paneflex *cview.Flex, index int) (pan *panel) {
 	pan.TabbedPanels.SetTabTextColorFocused(panelTabFGColorF)
 	pan.TabbedPanels.SetTabSwitcherHeight(1)
 
-	//default tabs
-	for panelIndex := 0; panelIndex < 20; panelIndex++ {
-		pan.AddTab(panelIndex)
-	}
+	pan.AddEmptyTab()
 
 	//add to paneflex
 	paneflex.AddItem(pan.TabbedPanels, 0, 1, false)
+	app.CurApp.SetFocus(pan)
 
 	return pan
 }
 
-func (panel *panel) AddTab(tabIndex int) {
-	t := NewTab(panel.TabbedPanels, tabIndex)
+func (panel *panel) AddTab(b *buff.Buffer) {
+	if !panel.HasNonEmptyTab() {
+		panel.RemoveTabByIndex(0)
+	}
+	t := NewTab(panel.TabbedPanels, b)
+	panel.tabs[t.GetName()] = t
+}
+
+func (panel *panel) RemoveTabByName(name string) {
+	panel.TabbedPanels.RemoveTab(name)
+	panel.tabs[name] = nil
+}
+
+func (panel *panel) RemoveTabByIndex(ind int) {
+	name := panel.TabbedPanels.TabName(ind)
+	panel.RemoveTabByName(name)
+}
+
+func (panel *panel) AddEmptyTab() {
+	b := buff.NewBufferFromString("", "", buff.BTDefault)
+	t := NewTab(panel.TabbedPanels, b)
 	panel.tabs[t.GetName()] = t
 }
 
 func (panel *panel) GetCurrentTab() (t *tab) {
 	index := panel.TabbedPanels.GetCurrentTab()
-	elem := panel.tabs[index].(tab)
-	return &elem
+	elem := panel.tabs[index].(*tab)
+	return elem
+}
+
+func (panel *panel) HasNonEmptyTab() bool {
+	if len(panel.tabs) > 1 {
+		return true
+	}
+	if _, ok := panel.tabs["No name"]; ok {
+		return false
+	}
+	return true
 }
 
 func (panel *panel) HandleInput(tevent *tcell.EventKey) (retEvent *tcell.EventKey) {

@@ -136,4 +136,5 @@ func (fb *filebrowser) ToggleDisplay() {
 		fb.TreeView.Box.SetVisible(true)
 		app.CurApp.SetFocus(nil)
 	}
+	app.CurApp.Redraw()
 }

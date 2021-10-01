@@ -68,4 +68,5 @@ func (log *logWin) ToggleDisplay() {
 		log.TextView.Box.SetVisible(true)
 		app.CurApp.SetFocus(nil)
 	}
+	app.CurApp.Redraw()
 }

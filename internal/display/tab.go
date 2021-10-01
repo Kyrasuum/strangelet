@@ -3,7 +3,7 @@ package display
 import (
 	"fmt"
 
-	"strangelet/pkg/app"
+	buff "strangelet/internal/buffer"
 
 	"github.com/Kyrasuum/cview"
 	"github.com/gdamore/tcell/v2"
@@ -23,7 +23,7 @@ type tab struct {
 	status *statusBar
 }
 
-func NewTab(tabs *cview.TabbedPanels, index int) (t *tab) {
+func NewTab(tabs *cview.TabbedPanels, b *buff.Buffer) (t *tab) {
 	t = &tab{}
 
 	t.Flex = cview.NewFlex()
@@ -31,16 +31,15 @@ func NewTab(tabs *cview.TabbedPanels, index int) (t *tab) {
 	t.row = cview.NewFlex()
 
 	t.gutter = NewGutter(t.row)
-	t.buffer = NewBuffer(t.row)
+	t.buffer = NewBuffer(t.row, b)
 	t.Flex.AddItem(t.row, 0, 1, false)
 	t.status = NewStatusBar(t.Flex)
 
-	t.name = fmt.Sprintf("tab-%d", index)
-	t.label = fmt.Sprintf("Tab #%d", index)
+	t.name = fmt.Sprintf(b.GetName())
+	t.label = fmt.Sprintf(b.GetName())
 
 	tabs.AddTab(t.name, t.label, t)
 	tabs.SetCurrentTab(t.name)
-	app.CurApp.SetFocus(t)
 
 	return t
 }

@@ -6,24 +6,20 @@ import (
 	"syscall"
 
 	"strangelet/internal/sync"
-
-	"github.com/Kyrasuum/cview"
+	"strangelet/pkg/app"
 )
 
 var (
 	done    = make(chan struct{})
 	sigterm chan os.Signal
 	sighup  chan os.Signal
-	app     *cview.Application
 )
 
-func InitEvents(ap *cview.Application) {
+func InitEvents() {
 	sigterm = make(chan os.Signal, 1)
 	sighup = make(chan os.Signal, 1)
 	signal.Notify(sigterm, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	signal.Notify(sighup, syscall.SIGHUP)
-
-	app = ap
 
 	go listenEvents()
 }
@@ -52,6 +48,5 @@ func listenEvents() {
 }
 
 func quit() {
-	app.Stop()
-	os.Exit(0)
+	app.CurApp.Stop()
 }

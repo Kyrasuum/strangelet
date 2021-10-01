@@ -11,6 +11,9 @@ var (
 type App interface {
 	SetFocus(prim cview.Primitive)
 	GetFocus() (prim cview.Primitive)
+	Redraw()
+	Stop()
+	Pause(f func())
 }
 
 type Display interface{}

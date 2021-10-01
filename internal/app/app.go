@@ -1,18 +1,25 @@
 package app
 
 import (
-	iapp "strangelet/pkg/app"
+	"flag"
+	"fmt"
+	"os"
 
+	"strangelet/internal/buffer"
+	"strangelet/internal/config"
 	"strangelet/internal/display"
 	"strangelet/internal/event"
 	"strangelet/internal/util"
+	iapp "strangelet/pkg/app"
 
 	"github.com/Kyrasuum/cview"
+
+	"github.com/go-errors/errors"
+	lua "github.com/yuin/gopher-lua"
 )
 
 var (
 	cviewApp *cview.Application
-	frame    iapp.Display
 
 	focusStk *util.Stack
 	focusMap map[cview.Primitive]struct{}
@@ -23,81 +30,153 @@ type application struct {
 }
 
 func NewApp() (app application) {
+	//handle calls post init
 	if cviewApp != nil {
 		return iapp.CurApp.(application)
 	}
 
+	//create singleton instance
 	app = application{}
 	cviewApp = cview.NewApplication()
-	go app.startApp()
+	//run startup
+	app.startApp()
 
 	defer cviewApp.HandlePanic()
 
+	//set cview flags
 	cviewApp.EnableMouse(true)
 	cviewApp.SetBeforeFocusFunc(app.focusHook)
 
-	event.InitEvents(cviewApp)
+	//initialize eventhandler
+	event.InitEvents()
 
+	//initialize focus handlers
 	focusStk = &util.Stack{}
 	focusMap = make(map[cview.Primitive]struct{})
 	iapp.CurApp = app
 
-	frame = display.NewDisplay(cviewApp)
+	//start display
+	frame := display.NewDisplay(cviewApp)
 
+	//load buffers from flags
+	args := flag.Args()
+	b := app.LoadInput(args)
+
+	if len(b) == 0 {
+		// No buffers to open
+		app.Stop()
+	}
+	//load tabs from buffers
+	for _, bobj := range b {
+		frame.AddTabToCurrentPanel(bobj)
+	}
+	//force a redraw
+	app.Redraw()
+
+	//postinit hook
+	err := config.RunPluginFn("postinit")
+	if err != nil {
+		app.TermMessage(err)
+	}
+	//done
 	return app
 }
 
 func (app application) startApp() {
 	defer cviewApp.HandlePanic()
 
-	if err := cviewApp.Run(); err != nil {
-		panic(err)
-	}
-}
+	//init log
+	InitFlags()
+	InitLog()
 
-func (app application) focusHook(prim cview.Primitive) bool {
-	defer cviewApp.HandlePanic()
-	// if prim is nil then we are removing focus from current object
-	if prim == nil {
-		// attempt to set focus to next in stack
-		prim = focusStk.Pop().(cview.Primitive)
-		delete(focusMap, prim)
-		if prim != nil {
-			app.SetFocus(prim)
-			return false
-		}
-		// nothing left in stack
-		return true
+	//init config
+	err := config.InitConfigDir(*flagConfigDir)
+	if err != nil {
+		app.TermMessage(err)
 	}
-	// check if we are setting focus to something already in stack
-	if _, ok := focusMap[prim]; ok {
-		//remove from focusStk so that it can be added at top
-		retrnStk := &util.Stack{}
-		for i := 0; i < focusStk.Len(); i++ { //have to use len of stack so that we can pop it
-			elem := focusStk.Pop()
-			if prim == elem {
-				break
+
+	//init runtime
+	config.InitRuntimeFiles()
+	err = config.ReadSettings()
+	if err != nil {
+		app.TermMessage(err)
+	}
+	//init global
+	err = config.InitGlobalSettings()
+	if err != nil {
+		app.TermMessage(err)
+	}
+
+	// flag options
+	for k, v := range optionFlags {
+		if *v != "" {
+			nativeValue, err := config.GetNativeValue(k, config.DefaultAllSettings()[k], *v)
+			if err != nil {
+				app.TermMessage(err)
+				continue
 			}
-			retrnStk.Push(elem)
+			config.GlobalSettings[k] = nativeValue
 		}
-		//can loop over elements of stack because we dont care about retrnStk after this
-		for _, elem := range *retrnStk {
-			focusStk.Push(elem)
-		}
-		//lastly remove from map
-		delete(focusMap, prim)
 	}
-	focusStk.Push(prim)
-	focusMap[prim] = struct{}{}
-	return true
-}
+	//process flags for plugins
+	DoPluginFlags()
 
-func (app application) SetFocus(prim cview.Primitive) {
-	defer cviewApp.HandlePanic()
-	cviewApp.SetFocus(prim)
-}
+	//handler for errors
+	defer func() {
+		if err := recover(); err != nil {
+			app.Stop()
+			if e, ok := err.(*lua.ApiError); ok {
+				fmt.Println("Lua API error:", e)
+			} else {
+				fmt.Println("Strangelet encountered an error:", errors.Wrap(err, 2).ErrorStack(), "\nIf you can reproduce this error, please report it")
+			}
+			// backup all open buffers
+			for _, b := range buffer.OpenBuffers {
+				b.Backup()
+			}
+			os.Exit(1)
+		}
+	}()
 
-func (app application) GetFocus() (prim cview.Primitive) {
-	defer cviewApp.HandlePanic()
-	return cviewApp.GetFocus()
+	//load all plugins
+	err = config.LoadAllPlugins()
+	if err != nil {
+	}
+
+	// action.InitBindings()
+	// action.InitCommands()
+
+	//load color scheme
+	err = config.InitColorscheme()
+	if err != nil {
+		app.TermMessage(err)
+	}
+
+	//preinit hook
+	err = config.RunPluginFn("preinit")
+	if err != nil {
+		app.TermMessage(err)
+	}
+
+	// action.InitGlobals()
+
+	//init hook
+	err = config.RunPluginFn("init")
+	if err != nil {
+		app.TermMessage(err)
+	}
+
+	//setup autosave
+	if a := config.GetGlobalOption("autosave").(float64); a > 0 {
+		config.SetAutoTime(int(a))
+		config.StartAutoSave()
+	}
+
+	go func() {
+		for {
+			if err := cviewApp.Run(); err != nil {
+				panic(err)
+			}
+		}
+	}()
 }

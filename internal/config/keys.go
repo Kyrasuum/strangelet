@@ -1,10 +1,8 @@
-package util
+package config
 
 import (
 	"sort"
 	"strings"
-
-	"strangelet/internal/config"
 )
 
 // try to make a keybinding more "friendly"
@@ -29,18 +27,18 @@ func FindBinding(action string, friendly bool) string {
 	// if you don't sort the keys, the order of iterating a map is not guaranteed
 	// this means that with >1 binding for a given command
 	// which one you get is random
-	keys := make([]string, len(config.Bindings[cat]))
+	keys := make([]string, len(Bindings[cat]))
 	i := 0
-	for k, _ := range config.Bindings[cat] {
+	for k, _ := range Bindings[cat] {
 		keys[i] = k
 		i++
 	}
 	sort.Strings(keys)
 
 	for _, k := range keys {
-		if config.Bindings[cat][k] == action {
+		if Bindings[cat][k] == action {
 			if friendly {
-				return friendlyBinding(k)
+				return FriendlyBinding(k)
 			} else {
 				return k
 			}

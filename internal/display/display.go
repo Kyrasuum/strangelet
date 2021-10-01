@@ -3,6 +3,7 @@ package display
 import (
 	"strangelet/pkg/app"
 
+	buff "strangelet/internal/buffer"
 	"strangelet/internal/event"
 
 	"github.com/Kyrasuum/cview"
@@ -27,6 +28,8 @@ type display struct {
 	rows   *cview.Flex
 	cols   []*cview.Flex
 	panels []*panel
+
+	curPanel *panel
 }
 
 func NewDisplay(app *cview.Application) (dplay *display) {
@@ -50,17 +53,7 @@ func NewDisplay(app *cview.Application) (dplay *display) {
 	dplay.rows = cview.NewFlex()
 	dplay.rows.SetDirection(cview.FlexRow)
 
-	//add initial row
-	cols := dplay.AddPanelRow()
-	//add dummy panels
-	dplay.AddPanelToRow(cols, 0)
-	dplay.AddPanelToRow(cols, 1)
-
-	//add initial row
-	cols = dplay.AddPanelRow()
-	//add dummy panels
-	dplay.AddPanelToRow(cols, 0)
-	dplay.AddPanelToRow(cols, 1)
+	dplay.AddPanelToNewRow()
 
 	//put it all together
 	dplay.subFlex.AddItem(dplay.rows, 0, 1, false)
@@ -74,18 +67,41 @@ func NewDisplay(app *cview.Application) (dplay *display) {
 	return dplay
 }
 
-func (dplay *display) AddPanelRow() (cols *cview.Flex) {
+func (dplay *display) AddPanelToNewRow() (cols *cview.Flex, pan *panel) {
 	cols = cview.NewFlex()
 
 	dplay.cols = append(dplay.cols, cols)
 	dplay.rows.AddItem(cols, 0, 1, false)
 
-	return cols
+	pan = dplay.AddPanelToRow(cols)
+
+	return cols, pan
 }
 
-func (dplay *display) AddPanelToRow(row *cview.Flex, panelIndex int) {
-	pan := NewPanel(row, panelIndex)
+func (dplay *display) AddPanelToRow(row *cview.Flex) (pan *panel) {
+	pan = NewPanel(row)
+	dplay.SetCurrentPanel(pan)
 	dplay.panels = append(dplay.panels, pan)
+
+	return pan
+}
+
+func (dplay *display) AddTabToCurrentPanel(b *buff.Buffer) {
+	if dplay.curPanel == nil || b == nil {
+		return
+	}
+	dplay.curPanel.AddTab(b)
+}
+
+func (dplay *display) AddTabToPanel(b *buff.Buffer, p *panel) {
+	if p == nil || b == nil {
+		return
+	}
+	p.AddTab(b)
+}
+
+func (dplay *display) SetCurrentPanel(p *panel) {
+	dplay.curPanel = p
 }
 
 func (dplay *display) HandleInput(tevent *tcell.EventKey) (retEvent *tcell.EventKey) {
