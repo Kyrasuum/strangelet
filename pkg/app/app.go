@@ -14,6 +14,7 @@ type App interface {
 	Redraw()
 	Stop()
 	Pause(f func())
+	TermMessage(msg ...interface{})
 }
 
 type Display interface{}

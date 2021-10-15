@@ -14,6 +14,7 @@ import (
 
 	"github.com/Kyrasuum/cview"
 
+	_ "github.com/allan-simon/go-singleinstance"
 	"github.com/go-errors/errors"
 	lua "github.com/yuin/gopher-lua"
 )

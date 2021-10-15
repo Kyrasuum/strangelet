@@ -45,7 +45,9 @@ func NewDisplay(app *cview.Application) (dplay *display) {
 	//initialize overall flex for screen space (command bar, file browser, and panel display)
 	dplay.Flex = cview.NewFlex()
 	dplay.Flex.SetDirection(cview.FlexRow)
+
 	dplay.subFlex = cview.NewFlex()
+
 	dplay.fb = NewFilebrowser(dplay.subFlex)
 	dplay.Flex.AddItem(dplay.subFlex, 0, 1, false)
 
@@ -62,9 +64,28 @@ func NewDisplay(app *cview.Application) (dplay *display) {
 
 	//set root display area
 	app.SetRoot(dplay, true)
+	app.SetBeforeDrawFunc(dplay.Render)
 	curDisplay = dplay
 
 	return dplay
+}
+
+func (dplay *display) Render(scr tcell.Screen) bool {
+	if dplay.fb.Render(scr) {
+		return true
+	}
+
+	if dplay.log.Render(scr) {
+		return true
+	}
+
+	for _, panel := range dplay.panels {
+		if panel.Render(scr) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (dplay *display) AddPanelToNewRow() (cols *cview.Flex, pan *panel) {

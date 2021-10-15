@@ -5,6 +5,7 @@ go 1.17
 require (
 	code.rocketnine.space/tslocum/cbind v0.1.5 // indirect
 	github.com/Kyrasuum/cview v1.5.8-0.20210925024824-4ac3d4c57ab6
+	github.com/allan-simon/go-singleinstance v0.0.0-20210120080615-d0997106ab37
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/dustin/go-humanize v1.0.0
 	github.com/gdamore/encoding v1.0.0 // indirect
@@ -14,6 +15,7 @@ require (
 	github.com/mattn/go-isatty v0.0.14
 	github.com/mattn/go-runewidth v0.0.14-0.20210830053702-dc8fe66265af
 	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/rjeczalik/notify v0.9.2
 	github.com/sergi/go-diff v1.2.0
 	github.com/yuin/gopher-lua v0.0.0-20210529063254-f4c35e4016d9
 	github.com/zyedidia/glob v0.0.0-20170209203856-dd4023a66dc3

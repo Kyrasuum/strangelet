@@ -57,12 +57,21 @@ func NewPanel(paneflex *cview.Flex) (pan *panel) {
 	return pan
 }
 
+func (panel *panel) Render(scr tcell.Screen) bool {
+	if panel.GetCurrentTab().Render(scr) {
+		return true
+	}
+
+	return false
+}
+
 func (panel *panel) AddTab(b *buff.Buffer) {
 	if !panel.HasNonEmptyTab() {
 		panel.RemoveTabByIndex(0)
 	}
 	t := NewTab(panel.TabbedPanels, b)
 	panel.tabs[t.GetName()] = t
+	b.MarkModified(0, 0)
 }
 
 func (panel *panel) RemoveTabByName(name string) {

@@ -1,9 +1,7 @@
 package app
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"runtime"
 )
 
@@ -23,7 +21,6 @@ func (app application) TermMessage(msg ...interface{}) {
 		fmt.Println(msg...)
 		fmt.Println("\nPress enter to continue")
 
-		reader := bufio.NewReader(os.Stdin)
-		reader.ReadString('\n')
+		fmt.Scanln()
 	})
 }

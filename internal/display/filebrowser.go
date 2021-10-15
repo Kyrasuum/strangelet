@@ -11,9 +11,10 @@ import (
 )
 
 var (
-	dirColor  tcell.Color
-	filColor  tcell.Color
-	fbbgColor tcell.Color
+	dirColor        tcell.Color
+	filColor        tcell.Color
+	fbbgColor       tcell.Color
+	fbheaderbgColor tcell.Color
 
 	filebrowserW int = 30
 
@@ -21,8 +22,11 @@ var (
 )
 
 type filebrowser struct {
-	*cview.TreeView
-	root *cview.TreeNode
+	*cview.Flex
+
+	tree   *cview.TreeView
+	header *cview.Table
+	root   *cview.TreeNode
 
 	parentFlex *cview.Flex
 
@@ -46,21 +50,44 @@ func NewFilebrowser(subFlex *cview.Flex) (fb *filebrowser) {
 	if fbbgColor == 0 {
 		fbbgColor = tcell.NewRGBColor(30, 30, 30)
 	}
+	if fbheaderbgColor == 0 {
+		fbheaderbgColor = tcell.NewRGBColor(150, 0, 0)
+	}
 
 	//setup tree
-	fb.rootDir = "."
+	fb.rootDir = ".."
 	fb.root = cview.NewTreeNode(fb.rootDir)
 	fb.root.SetColor(dirColor)
-	fb.TreeView = cview.NewTreeView()
-	fb.TreeView.SetRoot(fb.root)
-	fb.TreeView.SetCurrentNode(fb.root)
-	fb.TreeView.SetGraphics(false)
-	fb.TreeView.Box.SetBackgroundColor(fbbgColor)
+	fb.tree = cview.NewTreeView()
+	fb.tree.SetRoot(fb.root)
+	fb.tree.SetCurrentNode(fb.root)
+	fb.tree.SetGraphics(false)
+	fb.tree.Box.SetBackgroundColor(fbbgColor)
 
 	// Add the current directory to the root node.
-	fb.AddDirEntry(fb.root, fb.rootDir)
+	fb.AddDirEntry(fb.root, ".")
+
+	//setup header
+	fb.header = cview.NewTable()
+	cell := cview.NewTableCell("")
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = fb.rootDir
+	}
+	cell.SetText(cwd)
+	fb.rootDir = cwd
+	cell.SetAttributes(tcell.AttrUnderline)
+	fb.header.SetCell(0, 0, cell)
+	fb.header.Box.SetBackgroundColor(fbheaderbgColor)
+
+	//setup flex
+	fb.Flex = cview.NewFlex()
+	fb.Flex.SetDirection(cview.FlexRow)
+	fb.Flex.AddItem(fb.header, 1, 1, false)
+	fb.Flex.AddItem(fb.tree, 0, 1, false)
+
 	// If a directory was selected, open it.
-	fb.TreeView.SetSelectedFunc(fb.OpenDirectory)
+	fb.tree.SetSelectedFunc(fb.OpenDirectory)
 
 	subFlex.AddItem(fb, filebrowserW, 1, false)
 	fb.parentFlex = subFlex
@@ -71,8 +98,12 @@ func NewFilebrowser(subFlex *cview.Flex) (fb *filebrowser) {
 	return fb
 }
 
+func (fb *filebrowser) Render(scr tcell.Screen) bool {
+	return false
+}
+
 func (fb *filebrowser) IsVisible() bool {
-	return fb.TreeView.Box.GetVisible()
+	return fb.Box.GetVisible()
 }
 
 // A helper function which adds the files and directories of the given path
@@ -123,17 +154,18 @@ func (fb *filebrowser) HandleInput(tevent *tcell.EventKey) *tcell.EventKey {
 		fb.ToggleDisplay()
 		return nil
 	}
+	fb.tree.InputHandler()(tevent, app.CurApp.SetFocus)
 	return tevent
 }
 
 func (fb *filebrowser) ToggleDisplay() {
-	if fb.TreeView.Box.GetVisible() {
+	if fb.Box.GetVisible() {
 		fb.parentFlex.ResizeItem(fb, -1, 0)
-		fb.TreeView.Box.SetVisible(false)
+		fb.Box.SetVisible(false)
 		app.CurApp.SetFocus(fb)
 	} else {
 		fb.parentFlex.ResizeItem(fb, filebrowserW, 1)
-		fb.TreeView.Box.SetVisible(true)
+		fb.Box.SetVisible(true)
 		app.CurApp.SetFocus(nil)
 	}
 	app.CurApp.Redraw()

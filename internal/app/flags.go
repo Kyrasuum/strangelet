@@ -30,7 +30,7 @@ var (
 
 func InitFlags() {
 	flag.Usage = func() {
-		fmt.Println("Usage: micro [OPTIONS] [FILE]...")
+		fmt.Println("Usage: strangelet [OPTIONS] [FILE]...")
 		fmt.Println("-clean")
 		fmt.Println("    \tCleans the configuration directory")
 		fmt.Println("-config-dir dir")
@@ -45,7 +45,7 @@ func InitFlags() {
 		fmt.Println("-version")
 		fmt.Println("    \tShow the version number and information")
 
-		fmt.Print("\nMicro's plugin's can be managed at the command line with the following commands.\n")
+		fmt.Print("\nStrangelet's plugin's can be managed at the command line with the following commands.\n")
 		fmt.Println("-plugin install [PLUGIN]...")
 		fmt.Println("    \tInstall plugin(s)")
 		fmt.Println("-plugin remove [PLUGIN]...")
@@ -59,11 +59,11 @@ func InitFlags() {
 		fmt.Println("-plugin available")
 		fmt.Println("    \tList available plugins")
 
-		fmt.Print("\nMicro's options can also be set via command line arguments for quick\nadjustments. For real configuration, please use the settings.json\nfile (see 'help options').\n\n")
+		fmt.Print("\nStrangelet's options can also be set via command line arguments for quick\nadjustments. For real configuration, please use the settings.json\nfile (see 'help options').\n\n")
 		fmt.Println("-option value")
 		fmt.Println("    \tSet `option` to `value` for this session")
-		fmt.Println("    \tFor example: `micro -syntax off file.c`")
-		fmt.Println("\nUse `micro -options` to see the full list of configuration options")
+		fmt.Println("    \tFor example: `strangelet -syntax off file.c`")
+		fmt.Println("\nUse `strangelet -options` to see the full list of configuration options")
 	}
 
 	optionFlags = make(map[string]*string)
