@@ -41,6 +41,8 @@ func NewDisplay(app *cview.Application) (dplay *display) {
 
 	//handle input
 	app.SetInputCapture(dplay.HandleInput)
+	//handle mouse
+	app.SetMouseCapture(dplay.HandleMouse)
 
 	//initialize overall flex for screen space (command bar, file browser, and panel display)
 	dplay.Flex = cview.NewFlex()
@@ -151,4 +153,22 @@ func (dplay *display) HandleInput(tevent *tcell.EventKey) (retEvent *tcell.Event
 		}
 	}
 	return tevent
+}
+
+func (dplay *display) HandleMouse(event *tcell.EventMouse, action cview.MouseAction) (*tcell.EventMouse, cview.MouseAction) {
+	retEvent, retAction := dplay.fb.HandleMouse(event, action)
+	if retEvent != event {
+		return retEvent, retAction
+	}
+	retEvent, retAction = dplay.log.HandleMouse(event, action)
+	if retEvent != event {
+		return retEvent, retAction
+	}
+	for _, panel := range dplay.panels {
+		retEvent, retAction = panel.HandleMouse(event, action)
+		if retEvent != event {
+			return retEvent, retAction
+		}
+	}
+	return event, action
 }

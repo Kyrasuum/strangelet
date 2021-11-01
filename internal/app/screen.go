@@ -4,6 +4,6 @@ import ()
 
 var ()
 
-func (app application) Redraw() {
-	cviewApp.QueueUpdateDraw(func() {})
+func (app application) Redraw(f func()) {
+	cviewApp.QueueUpdateDraw(f)
 }

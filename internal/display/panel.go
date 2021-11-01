@@ -71,7 +71,6 @@ func (panel *panel) AddTab(b *buff.Buffer) {
 	}
 	t := NewTab(panel.TabbedPanels, b)
 	panel.tabs[t.GetName()] = t
-	b.MarkModified(0, 0)
 }
 
 func (panel *panel) RemoveTabByName(name string) {
@@ -112,4 +111,12 @@ func (panel *panel) HandleInput(tevent *tcell.EventKey) (retEvent *tcell.EventKe
 		return retEvent
 	}
 	return tevent
+}
+
+func (panel *panel) HandleMouse(event *tcell.EventMouse, action cview.MouseAction) (*tcell.EventMouse, cview.MouseAction) {
+	retEvent, retAction := panel.GetCurrentTab().HandleMouse(event, action)
+	if retEvent != event {
+		return retEvent, retAction
+	}
+	return event, action
 }

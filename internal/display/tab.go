@@ -6,6 +6,7 @@ import (
 	"math"
 	"regexp"
 	"strconv"
+	"strings"
 
 	buff "strangelet/internal/buffer"
 	"strangelet/internal/config"
@@ -18,11 +19,6 @@ import (
 )
 
 var (
-	gutterBGColor    tcell.Color
-	gutterFGColor    tcell.Color
-	statusBarBGColor tcell.Color
-	statusBarFGColor tcell.Color
-
 	formatParser = regexp.MustCompile(`\$\(.+?\)`)
 )
 
@@ -70,6 +66,10 @@ func NewTab(tabs *cview.TabbedPanels, b *buff.Buffer) (t *tab) {
 	t = &tab{}
 	t.Buffer = b
 
+	t.StartCursor = cursor.Loc{X: 0, Y: 0}
+	t.cursors = append(t.cursors, &cursor.Cursor{Loc: t.StartCursor, CurSelection: [2]cursor.Loc{t.StartCursor, t.StartCursor}})
+	t.curCursor = 0
+
 	t.Flex = cview.NewFlex()
 	t.Flex.SetDirection(cview.FlexRow)
 	t.row = cview.NewFlex()
@@ -85,23 +85,32 @@ func NewTab(tabs *cview.TabbedPanels, b *buff.Buffer) (t *tab) {
 	tabs.AddTab(t.name, t.label, t)
 	tabs.SetCurrentTab(t.name)
 
-	t.gutter.SetMouseCapture(t.wrapGutterMouse)
-
-	return t
-}
-
-func (tab *tab) wrapGutterMouse(action cview.MouseAction, event *tcell.EventMouse) (cview.MouseAction, *tcell.EventMouse) {
-	//pass scroll wheel actions to main buffer display
-	switch action {
-	case cview.MouseScrollUp:
-		offx, offy := tab.dbuffer.GetScrollOffset()
-		tab.dbuffer.ScrollTo(offx-1, offy)
-	case cview.MouseScrollDown:
-		offx, offy := tab.dbuffer.GetScrollOffset()
-		tab.dbuffer.ScrollTo(offx+1, offy)
+	//wrap settings
+	if !b.Settings["softwrap"].(bool) {
+		t.dbuffer.TextView.SetWrap(false)
+	} else {
+		t.dbuffer.TextView.SetWrap(true)
 	}
 
-	return action, event
+	//setup buffer callback
+	b.OptionCallback = func(option string, nativeValue interface{}) {
+		if option == "softwrap" {
+			if nativeValue.(bool) {
+				t.dbuffer.TextView.SetWrap(false)
+			} else {
+				t.dbuffer.TextView.SetWrap(true)
+			}
+		}
+		t.Buffer.ModifiedThisFrame = false
+		app.CurApp.Redraw(func() {})
+	}
+
+	//schedule redraw
+	app.CurApp.Redraw(func() {
+		b.MarkModified(0, 0)
+	})
+
+	return t
 }
 
 func (tab *tab) Render(scr tcell.Screen) bool {
@@ -114,7 +123,7 @@ func (tab *tab) Render(scr tcell.Screen) bool {
 		if tab.Buffer.Settings["diffgutter"].(bool) {
 			tab.Buffer.UpdateDiff(func(synchronous bool) {
 				if !synchronous {
-					app.CurApp.Redraw()
+					app.CurApp.Redraw(func() {})
 				}
 			})
 		}
@@ -125,6 +134,9 @@ func (tab *tab) Render(scr tcell.Screen) bool {
 
 	//update status bar displayed text
 	tab.updateStatusBarDisplay()
+
+	//update rendering of cursor
+	tab.updateCursorDisplay(scr)
 
 	//done
 	return false
@@ -140,21 +152,52 @@ func (tab *tab) updateBufferDisplay() {
 	//update displayed buffer text
 	tab.dbuffer.SetBytes(nil)
 	tab.gutter.TextView.SetBytes(nil)
+	_, _, width, _ := tab.dbuffer.GetInnerRect()
 	for line := 0; line < num_lines; line++ {
 		//print line contents
-		tab.dbuffer.Write(tab.Buffer.LineBytes(line))
+		line_str := tab.Buffer.Line(line)
+		tab.dbuffer.Write([]byte(fmt.Sprintf(`["%d"]%s[""]`, line, line_str)))
 		tab.dbuffer.Write([]byte("\n"))
 		//print line numbers
-		tab.gutter.TextView.Write([]byte(fmt.Sprintf("%d ", line)))
-		tab.gutter.TextView.Write([]byte("\n"))
+		prefix_len := math.Max(0, float64(gutter_size)-math.Log10(float64(line+1))-2)
+		tab.gutter.Write([]byte(fmt.Sprintf(`["%d"]%s%d [""]`, line, strings.Repeat(" ", int(prefix_len)), line)))
+
+		if tab.Buffer.Settings["softwrap"].(bool) {
+			line_len := len(line_str)
+			for li := 0; li <= int(math.Max(1.0, float64(line_len))/math.Max(1.0, float64(width))); li++ {
+				tab.gutter.Write([]byte("\n"))
+			}
+		} else {
+			tab.gutter.Write([]byte("\n"))
+		}
+	}
+}
+
+func (tab *tab) updateCursorDisplay(scr tcell.Screen) {
+	//grab data for all cursors
+	regions := []string{}
+	x, y, _, _ := tab.dbuffer.GetInnerRect()
+	row, column := tab.dbuffer.GetScrollOffset()
+
+	//main cursor logic
+	// mainCurs := tab.cursors[tab.curCursor]
+
+	//each cursor logic
+	for _, curs := range tab.cursors {
+		regions = append(regions, fmt.Sprintf("%d", curs.Y))
+		offx := curs.X + x - column
+		offy := curs.Y + y - row
+		if offx > x || offy >= y {
+			scr.ShowCursor(offx, offy)
+		} else {
+			scr.HideCursor()
+		}
 	}
 
-	// _, _, width, height := tab.dbuffer.Box.GetRect()
-	// _, _, width, height := tab.gutter.Box.GetRect()
-	// for line := 0; line < height; line++ {
-	// for col := 0; col < width; col++ {
-	// }
-	// }
+	//highlight line
+	tab.dbuffer.Highlight(regions...)
+	tab.gutter.Highlight(regions...)
+
 }
 
 func (tab *tab) updateStatusBarDisplay() {
@@ -210,8 +253,12 @@ func (tab *tab) updateStatusBarDisplay() {
 	tab.status.Write(rightText)
 }
 
-func (tab *tab) HandleInput(tevent *tcell.EventKey) (retEvent *tcell.EventKey) {
-	return tevent
+func (tab *tab) HandleInput(tevent *tcell.EventKey) *tcell.EventKey {
+	return tab.dbuffer.HandleInput(tevent)
+}
+
+func (tab *tab) HandleMouse(event *tcell.EventMouse, action cview.MouseAction) (*tcell.EventMouse, cview.MouseAction) {
+	return tab.dbuffer.HandleMouse(event, action)
 }
 
 func (tab *tab) GetName() string {
@@ -227,75 +274,5 @@ func (tab *tab) FindOpt(opt string) interface{} {
 }
 
 func (tab *tab) GetActiveCursor() *cursor.Cursor {
-	return &cursor.Cursor{Loc: cursor.Loc{X: 0, Y: 0}}
-}
-
-// Buffer display struct
-type buffer struct {
-	*cview.TextView
-}
-
-func NewBuffer(subFlex *cview.Flex) (buff *buffer) {
-	buff = &buffer{}
-
-	buff.TextView = cview.NewTextView()
-	buff.TextView.SetTextAlign(cview.AlignLeft)
-	buff.TextView.SetText("")
-	buff.TextView.Box.SetBackgroundColor(tcell.NewRGBColor(20, 20, 20))
-	buff.TextView.SetTextColor(tcell.NewRGBColor(230, 230, 230))
-
-	subFlex.AddItem(buff, 0, 1, false)
-
-	return buff
-}
-
-// Gutter display struct
-type gutter struct {
-	*cview.TextView
-}
-
-func NewGutter(subFlex *cview.Flex) (gutt *gutter) {
-	gutt = &gutter{}
-
-	if gutterBGColor == 0 {
-		gutterBGColor = tcell.NewRGBColor(40, 40, 40)
-	}
-	if gutterFGColor == 0 {
-		gutterFGColor = tcell.NewRGBColor(170, 170, 170)
-	}
-	gutt.TextView = cview.NewTextView()
-	gutt.TextView.SetTextAlign(cview.AlignRight)
-	gutt.TextView.Box.SetBackgroundColor(gutterBGColor)
-	gutt.TextView.SetTextColor(gutterFGColor)
-	gutt.TextView.SetScrollBarVisibility(cview.ScrollBarNever)
-
-	subFlex.AddItem(gutt, 2, 1, false)
-
-	return gutt
-}
-
-// Statusbar display struct
-type statusBar struct {
-	*cview.TextView
-}
-
-func NewStatusBar(flex *cview.Flex) (stat *statusBar) {
-	stat = &statusBar{}
-
-	if statusBarBGColor == 0 {
-		statusBarBGColor = tcell.NewRGBColor(160, 160, 160)
-	}
-	if statusBarFGColor == 0 {
-		statusBarFGColor = tcell.NewRGBColor(20, 20, 20)
-	}
-
-	stat.TextView = cview.NewTextView()
-	stat.TextView.SetTextAlign(cview.AlignLeft)
-	stat.TextView.SetText("Status Bar")
-	stat.TextView.Box.SetBackgroundColor(statusBarBGColor)
-	stat.TextView.SetTextColor(statusBarFGColor)
-
-	flex.AddItem(stat, 1, 1, false)
-
-	return stat
+	return tab.cursors[tab.curCursor]
 }

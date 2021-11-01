@@ -83,6 +83,10 @@ func (log *logWin) HandleInput(tevent *tcell.EventKey) *tcell.EventKey {
 	return tevent
 }
 
+func (log *logWin) HandleMouse(event *tcell.EventMouse, action cview.MouseAction) (*tcell.EventMouse, cview.MouseAction) {
+	return event, action
+}
+
 func (log *logWin) ToggleDisplay() {
 	if log.Box.GetVisible() {
 		log.parentFlex.ResizeItem(log, -1, 0)
@@ -93,5 +97,5 @@ func (log *logWin) ToggleDisplay() {
 		log.Box.SetVisible(true)
 		app.CurApp.SetFocus(nil)
 	}
-	app.CurApp.Redraw()
+	app.CurApp.Redraw(func() {})
 }

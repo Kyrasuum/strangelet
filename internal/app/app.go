@@ -72,7 +72,7 @@ func NewApp() (app application) {
 		frame.AddTabToCurrentPanel(bobj)
 	}
 	//force a redraw
-	app.Redraw()
+	app.Redraw(func() {})
 
 	//postinit hook
 	err := config.RunPluginFn("postinit")
@@ -166,6 +166,15 @@ func (app application) startApp() {
 	if err != nil {
 		app.TermMessage(err)
 	}
+
+	// m := clipboard.SetMethod(config.GetGlobalOption("clipboard").(string))
+	// go func() {
+	// clipErr := clipboard.Initialize(m)
+	//
+	// if clipErr != nil {
+	// log.Println(clipErr, " or change 'clipboard' option")
+	// }
+	// }()
 
 	//setup autosave
 	if a := config.GetGlobalOption("autosave").(float64); a > 0 {
