@@ -189,7 +189,8 @@ func (fb *filebrowser) HandleInput(tevent *tcell.EventKey) *tcell.EventKey {
 		return nil
 	}
 	if fb.Box.GetVisible() {
-		if tevent.Key() == tcell.KeyLeft {
+		switch tevent.Key() {
+		case tcell.KeyLeft:
 			node := fb.tree.GetCurrentNode()
 			if len(node.GetChildren()) != 0 {
 				fb.OpenDirectory(node)
@@ -197,13 +198,11 @@ func (fb *filebrowser) HandleInput(tevent *tcell.EventKey) *tcell.EventKey {
 				fb.tree.SetCurrentNode(node.GetParent())
 			}
 			return nil
-		}
-		if tevent.Key() == tcell.KeyRight {
+		case tcell.KeyRight:
 			node := fb.tree.GetCurrentNode()
 			fb.OpenDirectory(node)
 			return nil
-		}
-		if tevent.Key() == tcell.KeyEnter {
+		case tcell.KeyEnter:
 			node := fb.tree.GetCurrentNode()
 			path := node.GetReference().(string)
 			_, err := os.ReadDir(path)
@@ -220,6 +219,7 @@ func (fb *filebrowser) HandleInput(tevent *tcell.EventKey) *tcell.EventKey {
 			return nil
 		}
 		fb.tree.InputHandler()(tevent, app.CurApp.SetFocus)
+		return nil
 	}
 	return tevent
 }

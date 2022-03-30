@@ -21,7 +21,7 @@ func NewBuffer(subFlex *cview.Flex) (buff *buffer) {
 	buff = &buffer{}
 
 	if bufferBGColor == 0 {
-		bufferBGColor = tcell.NewRGBColor(20, 20, 20)
+		bufferBGColor = tcell.NewRGBColor(30, 30, 30)
 	}
 	if bufferFGColor == 0 {
 		bufferFGColor = tcell.NewRGBColor(230, 230, 230)

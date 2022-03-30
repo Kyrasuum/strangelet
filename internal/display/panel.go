@@ -58,7 +58,8 @@ func NewPanel(paneflex *cview.Flex) (pan *panel) {
 }
 
 func (panel *panel) Render(scr tcell.Screen) bool {
-	if panel.GetCurrentTab().Render(scr) {
+	t := panel.GetCurrentTab()
+	if t != nil && t.(*tab).Render(scr) {
 		return true
 	}
 
@@ -89,10 +90,14 @@ func (panel *panel) AddEmptyTab() {
 	panel.tabs[t.GetName()] = t
 }
 
-func (panel *panel) GetCurrentTab() (t *tab) {
+func (panel *panel) GetCurrentTab() interface{} {
 	index := panel.TabbedPanels.GetCurrentTab()
-	elem := panel.tabs[index].(*tab)
-	return elem
+	elem := panel.tabs[index]
+	if elem != nil {
+		return elem
+	}
+	var def interface{}
+	return def
 }
 
 func (panel *panel) HasNonEmptyTab() bool {
@@ -106,7 +111,7 @@ func (panel *panel) HasNonEmptyTab() bool {
 }
 
 func (panel *panel) HandleInput(tevent *tcell.EventKey) (retEvent *tcell.EventKey) {
-	retEvent = panel.GetCurrentTab().HandleInput(tevent)
+	retEvent = panel.GetCurrentTab().(*tab).HandleInput(tevent)
 	if retEvent != tevent {
 		return retEvent
 	}
@@ -114,7 +119,7 @@ func (panel *panel) HandleInput(tevent *tcell.EventKey) (retEvent *tcell.EventKe
 }
 
 func (panel *panel) HandleMouse(event *tcell.EventMouse, action cview.MouseAction) (*tcell.EventMouse, cview.MouseAction) {
-	retEvent, retAction := panel.GetCurrentTab().HandleMouse(event, action)
+	retEvent, retAction := panel.GetCurrentTab().(*tab).HandleMouse(event, action)
 	if retEvent != event {
 		return retEvent, retAction
 	}

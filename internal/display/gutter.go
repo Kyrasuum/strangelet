@@ -19,7 +19,7 @@ func NewGutter(subFlex *cview.Flex) (gutt *gutter) {
 	gutt = &gutter{}
 
 	if gutterBGColor == 0 {
-		gutterBGColor = tcell.NewRGBColor(40, 40, 40)
+		gutterBGColor = tcell.NewRGBColor(45, 45, 45)
 	}
 	if gutterFGColor == 0 {
 		gutterFGColor = tcell.NewRGBColor(170, 170, 170)

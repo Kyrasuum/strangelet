@@ -156,7 +156,7 @@ func (tab *tab) updateBufferDisplay() {
 	for line := 0; line < num_lines; line++ {
 		//print line contents
 		line_str := tab.Buffer.Line(line)
-		tab.dbuffer.Write([]byte(fmt.Sprintf(`["%d"]%s[""]`, line, line_str)))
+		tab.dbuffer.Write([]byte(fmt.Sprintf(`["%d"]%s [""]`, line, line_str)))
 		tab.dbuffer.Write([]byte("\n"))
 		//print line numbers
 		prefix_len := math.Max(0, float64(gutter_size)-math.Log10(float64(line+1))-2)
@@ -176,7 +176,10 @@ func (tab *tab) updateBufferDisplay() {
 func (tab *tab) updateCursorDisplay(scr tcell.Screen) {
 	//grab data for all cursors
 	regions := []string{}
-	x, y, _, _ := tab.dbuffer.GetInnerRect()
+	x, y, w, h := tab.dbuffer.GetInnerRect()
+	if tab.Buffer.LinesNum() > h {
+		w--
+	}
 	row, column := tab.dbuffer.GetScrollOffset()
 
 	//main cursor logic
@@ -187,7 +190,7 @@ func (tab *tab) updateCursorDisplay(scr tcell.Screen) {
 		regions = append(regions, fmt.Sprintf("%d", curs.Y))
 		offx := curs.X + x - column
 		offy := curs.Y + y - row
-		if offx > x || offy >= y {
+		if offx >= x && offy >= y && offx < x+w && offy < y+h {
 			scr.ShowCursor(offx, offy)
 		} else {
 			scr.HideCursor()
@@ -197,7 +200,6 @@ func (tab *tab) updateCursorDisplay(scr tcell.Screen) {
 	//highlight line
 	tab.dbuffer.Highlight(regions...)
 	tab.gutter.Highlight(regions...)
-
 }
 
 func (tab *tab) updateStatusBarDisplay() {
@@ -253,11 +255,59 @@ func (tab *tab) updateStatusBarDisplay() {
 	tab.status.Write(rightText)
 }
 
-func (tab *tab) HandleInput(tevent *tcell.EventKey) *tcell.EventKey {
-	return tab.dbuffer.HandleInput(tevent)
+func (tab *tab) HandleInput(event *tcell.EventKey) *tcell.EventKey {
+	switch event.Key() {
+	case tcell.KeyLeft:
+		for _, curs := range tab.cursors {
+			buff.Left(curs, tab.Buffer)
+		}
+		return nil
+	case tcell.KeyRight:
+		for _, curs := range tab.cursors {
+			buff.Right(curs, tab.Buffer)
+		}
+		return nil
+	case tcell.KeyUp:
+		for _, curs := range tab.cursors {
+			buff.Up(curs, tab.Buffer)
+		}
+		return nil
+	case tcell.KeyDown:
+		for _, curs := range tab.cursors {
+			buff.Down(curs, tab.Buffer)
+		}
+		return nil
+	}
+
+	return tab.dbuffer.HandleInput(event)
 }
 
 func (tab *tab) HandleMouse(event *tcell.EventMouse, action cview.MouseAction) (*tcell.EventMouse, cview.MouseAction) {
+	switch action {
+	case cview.MouseLeftClick:
+		if len(tab.cursors) == 1 {
+			cursx, cursy := event.Position()
+			x, y, w, h := tab.dbuffer.GetInnerRect()
+			if tab.Buffer.LinesNum() > h {
+				w--
+			}
+			if cursx >= x && cursy >= y && cursx < x+w && cursy < y+h {
+				//move cursor to clicked location
+				curs := tab.cursors[0]
+				curs.X = cursx - x
+				curs.Y = cursy - y
+				line_str := tab.Buffer.Line(curs.Y)
+				//limit cursor x position to points that actually exist in the text
+				curs.X = int(math.Max(math.Min(float64(len(line_str)), float64(curs.X)), 0))
+				return nil, action
+			}
+		}
+	case cview.MouseLeftDoubleClick:
+	case cview.MouseRightClick:
+	case cview.MouseRightDoubleClick:
+	case cview.MouseMiddleClick:
+	case cview.MouseMiddleDoubleClick:
+	}
 	return tab.dbuffer.HandleMouse(event, action)
 }
 

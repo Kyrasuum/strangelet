@@ -140,7 +140,7 @@ func GetCharPosInLine(c *cursor.Cursor, b []byte, visualPos int, buf *Buffer) in
 // StartOfText moves the cursor to the first non-whitespace rune of
 // the line it is on
 func StartOfText(c *cursor.Cursor, buf *Buffer) {
-	c.Start()
+	Start(c, buf)
 	for util.IsWhitespace(RuneUnder(c, c.X, buf)) {
 		if c.X == util.CharacterCount(buf.LineBytes(c.Y)) {
 			break
@@ -165,6 +165,17 @@ func IsStartOfText(c *cursor.Cursor, buf *Buffer) bool {
 // End moves the cursor to the end of the line it is on
 func End(c *cursor.Cursor, buf *Buffer) {
 	c.X = util.CharacterCount(buf.LineBytes(c.Y))
+	c.LastVisualX = GetVisualX(c, buf)
+}
+
+// Start moves the cursor to the start of the line it is on
+func Start(c *cursor.Cursor, buf *Buffer) {
+	c.X = 0
+	c.LastVisualX = GetVisualX(c, buf)
+}
+
+func StoreVisualX(c *cursor.Cursor, buf *Buffer) {
+	c.LastVisualX = GetVisualX(c, buf)
 }
 
 // DeleteSelection deletes the currently selected text
@@ -193,7 +204,7 @@ func GetSelection(c *cursor.Cursor, buf *Buffer) []byte {
 
 // SelectLine selects the current line
 func SelectLine(c *cursor.Cursor, buf *Buffer) {
-	c.Start()
+	Start(c, buf)
 	c.SetSelectionStart(c.Loc)
 	End(c, buf)
 	if len(buf.lines)-1 > c.Y {
@@ -203,10 +214,23 @@ func SelectLine(c *cursor.Cursor, buf *Buffer) {
 	}
 }
 
+// GetVisualX returns the x value of the cursor in visual spaces
+func GetVisualX(c *cursor.Cursor, buf *Buffer) int {
+	if c.X <= 0 {
+		c.X = 0
+		return 0
+	}
+
+	bytes := buf.LineBytes(c.Y)
+	tabsize := int(buf.Settings["tabsize"].(float64))
+
+	return util.StringWidth(bytes, c.X, tabsize)
+}
+
 // AddLineToSelection adds the current line to the selection
 func AddLineToSelection(c *cursor.Cursor, buf *Buffer) {
 	if c.Loc.LessThan(c.CurSelection[0]) {
-		c.Start()
+		Start(c, buf)
 		c.SetSelectionStart(c.Loc)
 		c.SetSelectionEnd(c.CurSelection[1])
 	}
@@ -227,14 +251,16 @@ func UpN(c *cursor.Cursor, amount int, buf *Buffer) {
 	}
 
 	bytes := buf.LineBytes(proposedY)
-	c.X = GetCharPosInLine(c, bytes, c.X, buf)
+	c.X = GetCharPosInLine(c, bytes, c.LastVisualX, buf)
 
 	if c.X > util.CharacterCount(bytes) || (amount < 0 && proposedY == c.Y) {
 		c.X = util.CharacterCount(bytes)
+		StoreVisualX(c, buf)
 	}
 
 	if c.X < 0 || (amount > 0 && proposedY == c.Y) {
 		c.X = 0
+		StoreVisualX(c, buf)
 	}
 
 	c.Y = proposedY
@@ -267,6 +293,7 @@ func Left(c *cursor.Cursor, buf *Buffer) {
 		Up(c, buf)
 		End(c, buf)
 	}
+	StoreVisualX(c, buf)
 }
 
 // Right moves the cursor right one cell (if possible) or
@@ -279,8 +306,16 @@ func Right(c *cursor.Cursor, buf *Buffer) {
 		c.X++
 	} else {
 		Down(c, buf)
-		c.Start()
+		Start(c, buf)
 	}
+	StoreVisualX(c, buf)
+}
+
+// GotoLoc puts the cursor at the given cursor's location and gives
+// the current cursor its selection too
+func GotoLoc(c *cursor.Cursor, l cursor.Loc, buf *Buffer) {
+	c.X, c.Y = l.X, l.Y
+	StoreVisualX(c, buf)
 }
 
 // Relocate makes sure that the cursor is inside the bounds
@@ -371,6 +406,27 @@ func SelectTo(c *cursor.Cursor, loc cursor.Loc) {
 	} else {
 		c.SetSelectionStart(loc)
 		c.SetSelectionEnd(c.CurSelection[0])
+	}
+}
+
+// ResetSelection resets the user's selection
+func ResetSelection(c *cursor.Cursor, buf *Buffer) {
+	c.CurSelection[0] = buf.Start()
+	c.CurSelection[1] = buf.Start()
+}
+
+// Deselect closes the cursor's current selection
+// Start indicates whether the cursor should be placed
+// at the start or end of the selection
+func Deselect(c *cursor.Cursor, buf *Buffer, start bool) {
+	if c.HasSelection() {
+		if start {
+			c.Loc = c.CurSelection[0]
+		} else {
+			c.Loc = Move(c.CurSelection[1], -1, buf)
+		}
+		ResetSelection(c, buf)
+		StoreVisualX(c, buf)
 	}
 }
 
