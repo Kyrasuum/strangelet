@@ -1,23 +1,16 @@
-# Tools files
-tools/build-version
-tools/build-date
+# Project build files
+release
+bin
 
-# Binaries for programs and plugins
-binaries/
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-strangelet
-strangelet.*
+# IDE artifacts
+.vscode/*
+.idea
+**/*sublime*
+**/log.txt
 
-# Test binary, built with `go test -c`
-*.test
-test/
+# Vscode debugging
+!.vscode/launch.json
+!.vscode/tasks.json
 
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
-
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# Blender Backups
+**/*.blend*

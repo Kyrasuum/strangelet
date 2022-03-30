@@ -1,5 +1,5 @@
 # Strangelet
-Terminal-based text editor written in golang whose code base is largely adapted from micro with minor infulence from Vim/Neovim.
+Terminal-based text editor written in haxe whose code base is largely inspired by micro with minor infulence from Vim/Neovim.
 This project's primary goals are to create a terminal-based text editor that is cross-platform and extensible with an efficient workflow.
 
 ## Specific code editor features intended include:
@@ -7,8 +7,8 @@ This project's primary goals are to create a terminal-based text editor that is 
 - [ ] Code Folding
 - [ ] Goto Definition
 - [ ] Goto File
-- [x] Integrated File Explorer
-- [x] Tabs
+- [ ] Integrated File Explorer
+- [ ] Tabs
 - [ ] Single Instance (via flag)
 - [ ] Command Integration (similar to vim's `:<command>`)
 - [ ] Vertical and Horizontal Splits
