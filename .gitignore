@@ -2,6 +2,10 @@
 release
 bin
 
+# Node files
+package-lock.json
+node_modules
+
 # IDE artifacts
 .vscode/*
 .idea

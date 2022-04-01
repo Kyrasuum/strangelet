@@ -2,4 +2,3 @@
 -main Main
 -dce full
 -lib console.hx
--hl main.hl

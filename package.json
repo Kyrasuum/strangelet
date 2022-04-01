@@ -1,0 +1,20 @@
+{
+    "name": "strangelet",
+    "bin": "bin/main.js",
+    "version": "1.0.0",
+    "description": "Simple terminal text editor",
+    "dependencies": {
+        "blessed-contrib": "^4.11.0",
+        "blessed-xterm": "^1.4.2",
+        "pkg": "^5.5.2",
+        "reblessed": "^0.1.84"
+    },
+    "pkg": {
+        "assets": [
+            "node_modules/**/**/*"
+        ]
+    },
+    "keywords": [],
+    "author": "Kyrasuum",
+    "license": "GNU"
+}

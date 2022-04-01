@@ -1,28 +1,48 @@
 package;
 
 import Console.*;
+var blessed = js.Node.require('reblessed');
 
 /**
  * ...
  * @author Kyrasuum
  */
 class Main {
+    //Our blessed screen object.
+    var screen = blessed.screen({
+      smartCSR: true
+    });
+    
+    var log: log.Log;
+    var fbr: fbr.Fbr;
+
     public function new() {
         proc_args();
+        init_screen();
+
+        log = new log.Log(screen);
+        fbr = new fbr.Fbr(screen);
+    }
+
+    public function exit() {
+        Sys.exit(0);
     }
 
     private function proc_args() {
+        //help text
         var options = [
-            ["--{command}", "-{letter}", "description", "default"   ],
-            ["file",        "f",  "file(s) to open on launch",    ""],
-            ["directory",   "d",  "working directory",            ""]
+            ["--{long-command}", "-{short-command}", "description", "default"],
+            ["file",        "f",  "file(s) to open on launch",      ""],
+            ["directory",   "d",  "working directory",              ""]
         ];
-    
+
+        //switch on cli arguements
         for (arg in Sys.args()){
             switch (arg) {
-                case "-h": {
+                case "-h", "--help": {
                     println("Strangelet provides the following command line arguements:");
                     print_columns(options);
+                    exit();
                 }
                 default: {
                     println(arg);
@@ -51,6 +71,7 @@ class Main {
             }
         }
 
+        //print formatted columns
         for (i in 0...lines.length){
             var line = lines[i];
             for (j in 0... line.length){
@@ -66,10 +87,23 @@ class Main {
         }
     }
 
+    public function init_screen() {
+        screen.title = 'Strangelet';
+
+        setup_keys();
+    }
+
+    public function setup_keys() {
+        //Quit on Control-q
+        screen.key(['C-q'], function(ch, key) {
+            exit();
+        });
+    }
+
     public function start() {
     }
     
-    static function main() {
+	public static function main() {
         var app = new Main();
         app.start();
     }
