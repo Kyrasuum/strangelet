@@ -20,14 +20,15 @@ import (
 	"strangelet/internal/config"
 	"strangelet/internal/cursor"
 	ulua "strangelet/internal/lua"
+	"strangelet/internal/util"
+	"strangelet/pkg/highlight"
 
 	dmp "github.com/sergi/go-diff/diffmatchpatch"
+	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/htmlindex"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
 	luar "layeh.com/gopher-luar"
-	"strangelet/internal/util"
-	"strangelet/pkg/highlight"
 )
 
 const backupTime = 8000
@@ -205,6 +206,66 @@ type Buffer struct {
 	HighlightSearch bool
 }
 
+type retabReader struct {
+	scanner  *bufio.Scanner
+	buffer   []byte
+	toSpaces bool
+	tabsize  int
+}
+
+func newRetabReader(from io.Reader, enc encoding.Encoding, autoretab bool, toSpaces bool, tabsize int) io.Reader {
+	if !autoretab {
+		return from
+	}
+	r := new(retabReader)
+	r.scanner = bufio.NewScanner(bufio.NewReader(transform.NewReader(from, enc.NewDecoder())))
+	r.toSpaces = toSpaces
+	r.tabsize = tabsize
+	return r
+}
+
+func (r *retabReader) fillBuffer(required int) error {
+	for len(r.buffer) < required {
+		if r.scanner.Scan() {
+			line := retabLine([]byte(r.scanner.Text()), r.toSpaces, r.tabsize)
+
+			r.buffer = append(r.buffer, line...)
+			r.buffer = append(r.buffer, "\n"...)
+		} else {
+			if err := r.scanner.Err(); err != nil {
+				return err
+			} else {
+				return io.EOF
+			}
+			break
+		}
+	}
+
+	return nil
+}
+
+func (r *retabReader) Read(into []byte) (n int, err error) {
+	err = r.fillBuffer(len(into))
+	n = copy(into, r.buffer)
+
+	r.buffer = r.buffer[n:]
+	return
+}
+
+func retabLine(l []byte, toSpaces bool, tabsize int) []byte {
+	ws := util.GetLeadingWhitespace(l)
+	if len(ws) != 0 {
+		if toSpaces {
+			ws = bytes.ReplaceAll(ws, []byte{'\t'}, bytes.Repeat([]byte{' '}, tabsize))
+		} else {
+			ws = bytes.ReplaceAll(ws, bytes.Repeat([]byte{' '}, tabsize), []byte{'\t'})
+		}
+	}
+
+	l = bytes.TrimLeft(l, " \t")
+	return append(ws, l...)
+}
+
 // NewBufferFromFile opens a new buffer using the given path
 // It will also automatically handle `~`, and line/column with filename:l:c
 // It will return an empty buffer if the path does not exist
@@ -323,7 +384,11 @@ func NewBuffer(r io.Reader, size int64, path string, btype BufType) *Buffer {
 			return NewBufferFromString("", "", btype)
 		}
 		if !hasBackup {
-			reader := bufio.NewReader(transform.NewReader(r, enc.NewDecoder()))
+			autoretab := b.Settings["autoretab"].(bool)
+			toSpaces := b.Settings["tabstospaces"].(bool)
+			tabsize := util.IntOpt(b.Settings["tabsize"])
+
+			reader := newRetabReader(r, enc, autoretab, toSpaces, tabsize)
 
 			var ff FileFormat = FFAuto
 
@@ -378,6 +443,7 @@ func NewBuffer(r io.Reader, size int64, path string, btype BufType) *Buffer {
 
 	err := config.RunPluginFn("onBufferOpen", luar.New(ulua.L, b))
 	if err != nil {
+		//TODO:
 		// screen.TermMessage(err)
 	}
 
@@ -430,7 +496,7 @@ func (b *Buffer) GetName() string {
 	return name
 }
 
-//SetName changes the name for this buffer
+// SetName changes the name for this buffer
 func (b *Buffer) SetName(s string) {
 	b.name = s
 }
@@ -486,13 +552,17 @@ func (b *Buffer) ReOpen() error {
 		return err
 	}
 
-	reader := bufio.NewReader(transform.NewReader(file, enc.NewDecoder()))
+	autoretab := b.Settings["autoretab"].(bool)
+	toSpaces := b.Settings["tabstospaces"].(bool)
+	tabsize := util.IntOpt(b.Settings["tabsize"])
+
+	reader := newRetabReader(file, enc, autoretab, toSpaces, tabsize)
 	data, err := ioutil.ReadAll(reader)
 	txt := string(data)
-
 	if err != nil {
 		return err
 	}
+
 	b.EventHandler.ApplyDiff(txt)
 
 	err = b.UpdateModTime()
@@ -627,16 +697,19 @@ func (b *Buffer) UpdateRules() {
 	for _, f := range config.ListRealRuntimeFiles(config.RTSyntax) {
 		data, err := f.Data()
 		if err != nil {
+			//TODO:
 			// screen.TermMessage("Error loading syntax file " + f.Name() + ": " + err.Error())
 			continue
 		}
 
 		header, err = highlight.MakeHeaderYaml(data)
 		if err != nil {
+			//TODO:
 			// screen.TermMessage("Error parsing header for syntax file " + f.Name() + ": " + err.Error())
 		}
 		file, err := highlight.ParseFile(data)
 		if err != nil {
+			//TODO:
 			// screen.TermMessage("Error parsing syntax file " + f.Name() + ": " + err.Error())
 			continue
 		}
@@ -644,6 +717,7 @@ func (b *Buffer) UpdateRules() {
 		if ((ft == "unknown" || ft == "") && highlight.MatchFiletype(header.FtDetect, b.Path, b.lines[0].data)) || header.FileType == ft {
 			syndef, err := highlight.ParseDef(file, header)
 			if err != nil {
+				//TODO:
 				// screen.TermMessage("Error parsing syntax file " + f.Name() + ": " + err.Error())
 				continue
 			}
@@ -658,12 +732,14 @@ func (b *Buffer) UpdateRules() {
 	for _, f := range config.ListRuntimeFiles(config.RTSyntaxHeader) {
 		data, err := f.Data()
 		if err != nil {
+			//TODO:
 			// screen.TermMessage("Error loading syntax header file " + f.Name() + ": " + err.Error())
 			continue
 		}
 
 		header, err = highlight.MakeHeader(data)
 		if err != nil {
+			//TODO:
 			// screen.TermMessage("Error reading syntax header file", f.Name(), err)
 			continue
 		}
@@ -685,18 +761,21 @@ func (b *Buffer) UpdateRules() {
 			if f.Name() == syntaxFile {
 				data, err := f.Data()
 				if err != nil {
+					//TODO:
 					// screen.TermMessage("Error loading syntax file " + f.Name() + ": " + err.Error())
 					continue
 				}
 
 				file, err := highlight.ParseFile(data)
 				if err != nil {
+					//TODO:
 					// screen.TermMessage("Error parsing syntax file " + f.Name() + ": " + err.Error())
 					continue
 				}
 
 				syndef, err := highlight.ParseDef(file, header)
 				if err != nil {
+					//TODO:
 					// screen.TermMessage("Error parsing syntax file " + f.Name() + ": " + err.Error())
 					continue
 				}
@@ -713,11 +792,13 @@ func (b *Buffer) UpdateRules() {
 		for _, f := range config.ListRuntimeFiles(config.RTSyntax) {
 			data, err := f.Data()
 			if err != nil {
+				//TODO:
 				// screen.TermMessage("Error parsing syntax file " + f.Name() + ": " + err.Error())
 				continue
 			}
 			header, err := highlight.MakeHeaderYaml(data)
 			if err != nil {
+				//TODO:
 				// screen.TermMessage("Error parsing syntax file " + f.Name() + ": " + err.Error())
 				continue
 			}
@@ -726,6 +807,7 @@ func (b *Buffer) UpdateRules() {
 				if header.FileType == i {
 					file, err := highlight.ParseFile(data)
 					if err != nil {
+						//TODO:
 						// screen.TermMessage("Error parsing syntax file " + f.Name() + ": " + err.Error())
 						continue
 					}
@@ -755,6 +837,7 @@ func (b *Buffer) UpdateRules() {
 			go func() {
 				b.Highlighter.HighlightStates(b)
 				b.Highlighter.HighlightMatches(b, 0, b.End().Y)
+				//TODO:
 				// screen.Redraw()
 			}()
 		}
@@ -1045,6 +1128,7 @@ func (b *Buffer) SetDiffBase(diffBase []byte) {
 		b.diffBaseLineCount = strings.Count(string(diffBase), "\n")
 	}
 	b.UpdateDiff(func(synchronous bool) {
+		//TODO:
 		// screen.Redraw()
 	})
 }

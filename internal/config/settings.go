@@ -259,6 +259,7 @@ func GetGlobalOption(name string) interface{} {
 var defaultCommonSettings = map[string]interface{}{
 	"autoindent":     true,
 	"autosu":         false,
+	"autoretab":      false,
 	"backup":         true,
 	"backupdir":      "",
 	"basename":       false,
@@ -336,10 +337,12 @@ var DefaultGlobalOnlySettings = map[string]interface{}{
 	"mouse":          true,
 	"parsecursor":    false,
 	"paste":          false,
-	"savehistory":    true,
-	"sucmd":          "sudo",
 	"pluginchannels": []string{"https://raw.githubusercontent.com/micro-editor/plugin-channel/master/channel.json"},
 	"pluginrepos":    []string{},
+	"savehistory":    true,
+	"sucmd":          "sudo",
+	"tabhighlight":   false,
+	"tabreverse":     true,
 	"xterm":          false,
 }
 
