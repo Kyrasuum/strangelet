@@ -1,3 +1,7 @@
+<div align="center">
+    <img src="./strangelet.svg" width="400" height="400" />
+</div>
+
 # Strangelet
 Terminal-based text editor written in golang whose code base is largely adapted from micro with minor infulence from Vim/Neovim.
 This project's primary goals are to create a terminal-based text editor that is cross-platform and extensible with an efficient workflow.

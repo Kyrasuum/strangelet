@@ -1,3 +1,5 @@
+//adapted from 'micro's way of accomplishing this task https://github.com/zyedidia/micro
+
 package util
 
 // LuaRuneAt is a helper function for lua plugins to return the rune

@@ -1,15 +1,13 @@
+//adapted from 'micro's way of accomplishing this task https://github.com/zyedidia/micro
+
 package config
 
 import (
-	"embed"
-	"errors"
 	"io/ioutil"
-	"log"
-	"os"
 	"path"
 	"path/filepath"
-	"regexp"
-	"strings"
+
+	rt "strangelet/runtime"
 )
 
 const (
@@ -25,8 +23,6 @@ var (
 )
 
 type RTFiletype int
-
-var runtime embed.FS
 
 // RuntimeFile allows the program to read runtime data like colorschemes or syntax files
 type RuntimeFile interface {
@@ -93,7 +89,7 @@ func (af assetFile) Name() string {
 }
 
 func (af assetFile) Data() ([]byte, error) {
-	return Asset(string(af))
+	return rt.Asset(string(af))
 }
 
 func (nf namedFile) Name() string {
@@ -126,7 +122,7 @@ func AddRuntimeFilesFromDirectory(fileType RTFiletype, directory, pattern string
 // AddRuntimeFilesFromAssets registers each file from the given asset-directory for
 // the filetype which matches the file-pattern
 func AddRuntimeFilesFromAssets(fileType RTFiletype, directory, pattern string) {
-	files, err := AssetDir(directory)
+	files, err := rt.AssetDir(directory)
 	if err != nil {
 		return
 	}
@@ -166,169 +162,8 @@ func InitRuntimeFiles() {
 		AddRuntimeFilesFromAssets(fileType, path.Join("runtime", dir), pattern)
 	}
 
-	add(RTColorscheme, "colorschemes", "*.micro")
+	add(RTColorscheme, "colorschemes", "*.scheme")
 	add(RTSyntax, "syntax", "*.yaml")
 	add(RTSyntaxHeader, "syntax", "*.hdr")
 	add(RTHelp, "help", "*.md")
-
-	initlua := filepath.Join(ConfigDir, "init.lua")
-	if _, err := os.Stat(initlua); !os.IsNotExist(err) {
-		p := new(Plugin)
-		p.Name = "initlua"
-		p.DirName = "initlua"
-		p.Srcs = append(p.Srcs, realFile(initlua))
-		Plugins = append(Plugins, p)
-	}
-
-	// Search ConfigDir for plugin-scripts
-	plugdir := filepath.Join(ConfigDir, "plug")
-	files, _ := ioutil.ReadDir(plugdir)
-
-	isID := regexp.MustCompile(`^[_A-Za-z0-9]+$`).MatchString
-
-	for _, d := range files {
-		plugpath := filepath.Join(plugdir, d.Name())
-		if stat, err := os.Stat(plugpath); err == nil && stat.IsDir() {
-			srcs, _ := ioutil.ReadDir(plugpath)
-			p := new(Plugin)
-			p.Name = d.Name()
-			p.DirName = d.Name()
-			for _, f := range srcs {
-				if strings.HasSuffix(f.Name(), ".lua") {
-					p.Srcs = append(p.Srcs, realFile(filepath.Join(plugdir, d.Name(), f.Name())))
-				} else if strings.HasSuffix(f.Name(), ".json") {
-					data, err := ioutil.ReadFile(filepath.Join(plugdir, d.Name(), f.Name()))
-					if err != nil {
-						continue
-					}
-					p.Info, err = NewPluginInfo(data)
-					if err != nil {
-						continue
-					}
-					p.Name = p.Info.Name
-				}
-			}
-
-			if !isID(p.Name) || len(p.Srcs) <= 0 {
-				log.Println(p.Name, "is not a plugin")
-				continue
-			}
-			Plugins = append(Plugins, p)
-		}
-	}
-
-	plugdir = filepath.Join("runtime", "plugins")
-	if files, err := AssetDir(plugdir); err == nil {
-		for _, d := range files {
-			if srcs, err := AssetDir(filepath.Join(plugdir, d)); err == nil {
-				p := new(Plugin)
-				p.Name = d
-				p.DirName = d
-				p.Default = true
-				for _, f := range srcs {
-					if strings.HasSuffix(f, ".lua") {
-						p.Srcs = append(p.Srcs, assetFile(filepath.Join(plugdir, d, f)))
-					} else if strings.HasSuffix(f, ".json") {
-						data, err := Asset(filepath.Join(plugdir, d, f))
-						if err != nil {
-							continue
-						}
-						p.Info, err = NewPluginInfo(data)
-						if err != nil {
-							continue
-						}
-						p.Name = p.Info.Name
-					}
-				}
-				if !isID(p.Name) || len(p.Srcs) <= 0 {
-					log.Println(p.Name, "is not a plugin")
-					continue
-				}
-				Plugins = append(Plugins, p)
-			}
-		}
-	}
-}
-
-// PluginReadRuntimeFile allows plugin scripts to read the content of a runtime file
-func PluginReadRuntimeFile(fileType RTFiletype, name string) string {
-	if file := FindRuntimeFile(fileType, name); file != nil {
-		if data, err := file.Data(); err == nil {
-			return string(data)
-		}
-	}
-	return ""
-}
-
-// PluginListRuntimeFiles allows plugins to lists all runtime files of the given type
-func PluginListRuntimeFiles(fileType RTFiletype) []string {
-	files := ListRuntimeFiles(fileType)
-	result := make([]string, len(files))
-	for i, f := range files {
-		result[i] = f.Name()
-	}
-	return result
-}
-
-// PluginAddRuntimeFile adds a file to the runtime files for a plugin
-func PluginAddRuntimeFile(plugin string, filetype RTFiletype, filePath string) error {
-	pl := FindPlugin(plugin)
-	if pl == nil {
-		return errors.New("Plugin " + plugin + " does not exist")
-	}
-	pldir := pl.DirName
-	fullpath := filepath.Join(ConfigDir, "plug", pldir, filePath)
-	if _, err := os.Stat(fullpath); err == nil {
-		AddRealRuntimeFile(filetype, realFile(fullpath))
-	} else {
-		fullpath = path.Join("runtime", "plugins", pldir, filePath)
-		AddRuntimeFile(filetype, assetFile(fullpath))
-	}
-	return nil
-}
-
-// PluginAddRuntimeFilesFromDirectory adds files from a directory to the runtime files for a plugin
-func PluginAddRuntimeFilesFromDirectory(plugin string, filetype RTFiletype, directory, pattern string) error {
-	pl := FindPlugin(plugin)
-	if pl == nil {
-		return errors.New("Plugin " + plugin + " does not exist")
-	}
-	pldir := pl.DirName
-	fullpath := filepath.Join(ConfigDir, "plug", pldir, directory)
-	if _, err := os.Stat(fullpath); err == nil {
-		AddRuntimeFilesFromDirectory(filetype, fullpath, pattern)
-	} else {
-		fullpath = path.Join("runtime", "plugins", pldir, directory)
-		AddRuntimeFilesFromAssets(filetype, fullpath, pattern)
-	}
-	return nil
-}
-
-// PluginAddRuntimeFileFromMemory adds a file to the runtime files for a plugin from a given string
-func PluginAddRuntimeFileFromMemory(filetype RTFiletype, filename, data string) {
-	AddRealRuntimeFile(filetype, memoryFile{filename, []byte(data)})
-}
-
-func fixPath(name string) string {
-	return strings.TrimLeft(filepath.ToSlash(name), "runtime/")
-}
-
-// AssetDir lists file names in folder
-func AssetDir(name string) ([]string, error) {
-	name = fixPath(name)
-	entries, err := runtime.ReadDir(name)
-	if err != nil {
-		return nil, err
-	}
-	names := make([]string, len(entries), len(entries))
-	for i, entry := range entries {
-		names[i] = entry.Name()
-	}
-	return names, nil
-}
-
-// Asset returns a file content
-func Asset(name string) ([]byte, error) {
-	name = fixPath(name)
-	return runtime.ReadFile(name)
 }

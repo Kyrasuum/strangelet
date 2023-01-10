@@ -1,3 +1,5 @@
+//adapted from 'micro's way of accomplishing this task https://github.com/zyedidia/micro
+
 package config
 
 import (
@@ -259,28 +261,19 @@ func GetGlobalOption(name string) interface{} {
 var defaultCommonSettings = map[string]interface{}{
 	"autoindent":     true,
 	"autosu":         false,
-	"autoretab":      false,
 	"backup":         true,
 	"backupdir":      "",
 	"basename":       false,
 	"colorcolumn":    float64(0),
 	"cursorline":     true,
-	"diffgutter":     false,
+	"diffgutter":     true,
 	"encoding":       "utf-8",
 	"eofnewline":     true,
-	"fastdirty":      false,
-	"fileformat":     "unix",
-	"filetype":       "unknown",
-	"hlsearch":       false,
-	"incsearch":      true,
-	"ignorecase":     true,
 	"indentchar":     " ",
 	"keepautoindent": false,
 	"matchbrace":     true,
-	"mkparents":      false,
-	"permbackup":     false,
+	"mkparents":      true,
 	"readonly":       false,
-	"rmtrailingws":   false,
 	"ruler":          true,
 	"relativeruler":  false,
 	"savecursor":     false,
@@ -290,10 +283,6 @@ var defaultCommonSettings = map[string]interface{}{
 	"scrollspeed":    float64(2),
 	"smartpaste":     true,
 	"softwrap":       false,
-	"splitbottom":    true,
-	"splitright":     true,
-	"statusformatl":  "$(filename) $(modified)($(line),$(col)) $(status.paste)| ft:$(opt:filetype) | $(opt:fileformat) | $(opt:encoding)",
-	"statusformatr":  "$(bind:ToggleKeyMenu): bindings, $(bind:ToggleHelp): help",
 	"statusline":     true,
 	"syntax":         true,
 	"tabmovement":    false,
@@ -314,7 +303,7 @@ func GetInfoBarOffset() int {
 	return offset
 }
 
-// DefaultCommonSettings returns the default global settings for micro
+// DefaultCommonSettings returns the default global settings for strangelet
 // Note that colorscheme is a global only option
 func DefaultCommonSettings() map[string]interface{} {
 	commonsettings := make(map[string]interface{})
@@ -327,23 +316,21 @@ func DefaultCommonSettings() map[string]interface{} {
 // a list of settings that should only be globally modified and their
 // default values
 var DefaultGlobalOnlySettings = map[string]interface{}{
+	"logname":        "strangelet.log",
+	"lockname":       "strangelet.lock",
+	"pipename":       "strangelet.pipe",
 	"autosave":       float64(0),
 	"clipboard":      "external",
 	"colorscheme":    "default",
-	"divchars":       "|-",
-	"divreverse":     true,
 	"infobar":        true,
 	"keymenu":        false,
 	"mouse":          true,
-	"parsecursor":    false,
 	"paste":          false,
-	"pluginchannels": []string{"https://raw.githubusercontent.com/micro-editor/plugin-channel/master/channel.json"},
+	"pluginchannels": []string{""},
 	"pluginrepos":    []string{},
 	"savehistory":    true,
 	"sucmd":          "sudo",
-	"tabhighlight":   false,
 	"tabreverse":     true,
-	"xterm":          false,
 }
 
 // a list of settings that should never be globally modified
@@ -352,7 +339,7 @@ var LocalSettings = []string{
 	"readonly",
 }
 
-// DefaultGlobalSettings returns the default global settings for micro
+// DefaultGlobalSettings returns the default global settings for strangelet
 // Note that colorscheme is a global only option
 func DefaultGlobalSettings() map[string]interface{} {
 	globalsettings := make(map[string]interface{})
@@ -452,7 +439,7 @@ func validateColorscheme(option string, value interface{}) error {
 		return errors.New("Expected string type for colorscheme")
 	}
 
-	if !ColorschemeExists(colorscheme) {
+	if FindRuntimeFile(RTColorscheme, colorscheme) == nil {
 		return errors.New(colorscheme + " is not a valid colorscheme")
 	}
 

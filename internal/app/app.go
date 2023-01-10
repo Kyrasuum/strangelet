@@ -1,192 +1,323 @@
 package app
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
+	"log"
 	"os"
+	"os/signal"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"syscall"
 
-	"strangelet/internal/buffer"
-	"strangelet/internal/config"
-	"strangelet/internal/display"
-	"strangelet/internal/event"
-	"strangelet/internal/util"
-	iapp "strangelet/pkg/app"
+	clipboard "strangelet/internal/clipboard"
+	config "strangelet/internal/config"
+	util "strangelet/internal/util"
+	view "strangelet/internal/view"
+	pub "strangelet/pkg/app"
 
-	"github.com/Kyrasuum/cview"
-
-	_ "github.com/allan-simon/go-singleinstance"
-	"github.com/go-errors/errors"
-	lua "github.com/yuin/gopher-lua"
+	singleinstance "github.com/allan-simon/go-singleinstance"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 var (
-	cviewApp *cview.Application
+	// Event channel
+	autosave chan bool
 
-	focusStk *util.Stack
-	focusMap map[cview.Primitive]struct{}
+	// Command line flags
+	flagVersion   = flag.Bool("version", false, "Show the version number and information")
+	flagConfigDir = flag.String("config-dir", "", "Specify a custom location for the configuration directory")
+	flagClean     = flag.Bool("clean", false, "Clean configuration directory")
+	optionFlags   map[string]*string
+
+	sigterm chan os.Signal
+	sighup  chan os.Signal
 )
 
-type application struct {
-	iapp.App
+type subapp struct {
+	Shutdown chan int
+
+	Log  *os.File
+	Lock *os.File
+	Pipe *os.File
 }
 
-func NewApp() (app application) {
-	//handle calls post init
-	if cviewApp != nil {
-		return iapp.CurApp.(application)
-	}
+func NewApp() (app pub.App) {
+	//create private app space
+	priv := &subapp{Shutdown: make(chan int), Lock: nil}
+	app.Priv = priv
 
-	//create singleton instance
-	app = application{}
-	cviewApp = cview.NewApplication()
-	//run startup
-	app.startApp()
-
-	defer cviewApp.HandlePanic()
-
-	//set cview flags
-	cviewApp.EnableMouse(true)
-	cviewApp.SetBeforeFocusFunc(app.focusHook)
-
-	//initialize eventhandler
-	event.InitEvents()
-
-	//initialize focus handlers
-	focusStk = &util.Stack{}
-	focusMap = make(map[cview.Primitive]struct{})
-	iapp.CurApp = app
-
-	//start display
-	frame := display.NewDisplay(cviewApp)
-
-	//load buffers from flags
-	args := flag.Args()
-	b := app.LoadInput(args)
-
-	if len(b) == 0 {
-		// No buffers to open
-		app.Stop()
-	}
-	//load tabs from buffers
-	for _, bobj := range b {
-		frame.AddTabToCurrentPanel(bobj)
-	}
-	//force a redraw
-	app.Redraw(func() {})
-
-	//postinit hook
-	err := config.RunPluginFn("postinit")
-	if err != nil {
-		app.TermMessage(err)
-	}
-	//done
-	return app
-}
-
-func (app application) startApp() {
-	defer cviewApp.HandlePanic()
-
-	//init log
+	//grab flags
 	InitFlags()
-	InitLog()
+	args := flag.Args()
 
-	//init config
-	err := config.InitConfigDir(*flagConfigDir)
+	//setup home
+	err := config.InitConfigDir("")
 	if err != nil {
-		app.TermMessage(err)
+		fmt.Println(err)
+		os.Exit(0)
 	}
 
-	//init runtime
+	//setup settings
 	config.InitRuntimeFiles()
 	err = config.ReadSettings()
 	if err != nil {
-		app.TermMessage(err)
+		fmt.Println(err)
+		os.Exit(0)
 	}
-	//init global
 	err = config.InitGlobalSettings()
 	if err != nil {
-		app.TermMessage(err)
+		fmt.Println(err)
+		os.Exit(0)
 	}
 
-	// flag options
-	for k, v := range optionFlags {
-		if *v != "" {
-			nativeValue, err := config.GetNativeValue(k, config.DefaultAllSettings()[k], *v)
+	//get single instance lock
+	lockFile, err := singleinstance.CreateLockFile(filepath.Join(config.ConfigDir, config.GlobalSettings["lockname"].(string)))
+	if err != nil {
+		//another instance is already running attempt to pass to other instance
+		_, err := singleinstance.GetLockFilePid(filepath.Join(config.ConfigDir, config.GlobalSettings["lockname"].(string)))
+		if err != nil {
+			//error occured, unrecoverable
+			fmt.Println("Cannot get PID:", err)
+			app.StartApp = func() { CloseApp(app, 1) }
+			return app
+		}
+
+		//pass arguements
+		app.StartApp = func() { PassArgs(app, args) }
+		return app
+	}
+	priv.Lock = lockFile
+
+	//load arguments
+	LoadArgs(args)
+
+	//setup logging
+	priv.Log, err = os.OpenFile(config.GlobalSettings["logname"].(string), os.O_RDWR|os.O_CREATE, 0777)
+	if err == nil {
+		log.SetOutput(priv.Log)
+	}
+
+	//create named pipe for IPC
+	os.Remove(config.GlobalSettings["pipename"].(string))
+	err = syscall.Mkfifo(config.GlobalSettings["pipename"].(string), 0666)
+	if err != nil {
+		log.Println("Error making named pipe")
+		log.Println(err)
+		app.StartApp = func() { CloseApp(app, 1) }
+		return app
+	}
+	//open named pipe for IPC
+	priv.Pipe, err = os.OpenFile(config.GlobalSettings["pipename"].(string), os.O_RDWR, os.ModeNamedPipe)
+
+	//setup clipboard
+	method := clipboard.SetMethod(config.GetGlobalOption("clipboard").(string))
+	err = clipboard.Initialize(method)
+	if err != nil {
+		log.Println(err, " or change 'clipboard' option")
+	}
+
+	//setup signal handlers
+	sigterm = make(chan os.Signal, 1)
+	sighup = make(chan os.Signal, 1)
+	signal.Notify(sigterm, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	signal.Notify(sighup, syscall.SIGHUP)
+
+	//continue startup
+	app.StartApp = func() { StartApp(app) }
+
+	return app
+}
+
+func InitFlags() {
+	flag.Usage = func() {
+		fmt.Println("Usage: micro [OPTIONS] [FILE]...")
+		fmt.Println("-clean")
+		fmt.Println("    \tCleans the configuration directory")
+		fmt.Println("-config-dir dir")
+		fmt.Println("    \tSpecify a custom location for the configuration directory")
+		fmt.Println("-version")
+		fmt.Println("    \tShow the version number and information")
+		fmt.Println("[FILE]:LINE:COL")
+	}
+
+	optionFlags = make(map[string]*string)
+
+	for k, v := range config.DefaultAllSettings() {
+		optionFlags[k] = flag.String(k, "", fmt.Sprintf("The %s option. Default value: '%v'.", k, v))
+	}
+
+	flag.Parse()
+
+	if *flagVersion {
+		// If -version was passed
+		fmt.Println("Version:", util.Version)
+		fmt.Println("Commit hash:", util.CommitHash)
+		fmt.Println("Compiled on", util.CompileDate)
+		os.Exit(0)
+	}
+}
+
+func LoadArgs(args []string) []struct {
+	name string
+	line int
+	col  int
+} {
+	var err error
+	files := make([]struct {
+		name string
+		line int
+		col  int
+	}, 0, len(args))
+	flagr := regexp.MustCompile(`^\+(\d+)(?::(\d+))?$`)
+
+	for _, a := range args {
+		match := flagr.FindStringSubmatch(a)
+		line := 0
+		col := 0
+
+		if len(match) == 3 && match[2] != "" {
+			line, err = strconv.Atoi(match[1])
 			if err != nil {
-				app.TermMessage(err)
+				log.Println(err)
 				continue
 			}
-			config.GlobalSettings[k] = nativeValue
-		}
-	}
-	//process flags for plugins
-	DoPluginFlags()
-
-	//handler for errors
-	defer func() {
-		if err := recover(); err != nil {
-			app.Stop()
-			if e, ok := err.(*lua.ApiError); ok {
-				fmt.Println("Lua API error:", e)
-			} else {
-				fmt.Println("Strangelet encountered an error:", errors.Wrap(err, 2).ErrorStack(), "\nIf you can reproduce this error, please report it")
+			col, err = strconv.Atoi(match[2])
+			if err != nil {
+				log.Println(err)
+				continue
 			}
-			// backup all open buffers
-			for _, b := range buffer.OpenBuffers {
-				b.Backup()
-			}
-			os.Exit(1)
 		}
-	}()
 
-	//load all plugins
-	err = config.LoadAllPlugins()
+		if len(match) == 3 && match[2] == "" {
+			line, err = strconv.Atoi(match[1])
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+		}
+
+		files = append(files, struct {
+			name string
+			line int
+			col  int
+		}{name: a, line: line, col: col})
+	}
+
+	return files
+}
+
+func PassArgs(app pub.App, args []string) {
+	//get connection to locking instance
+	pipe, err := os.OpenFile(config.GlobalSettings["pipename"].(string), os.O_WRONLY, os.ModeNamedPipe)
 	if err != nil {
+		fmt.Println("Failed to open named pipe")
+		fmt.Println(err)
+		CloseApp(app, 1)
 	}
 
-	// action.InitBindings()
-	// action.InitCommands()
-
-	//load color scheme
-	err = config.InitColorscheme()
-	if err != nil {
-		app.TermMessage(err)
-	}
-
-	//preinit hook
-	err = config.RunPluginFn("preinit")
-	if err != nil {
-		app.TermMessage(err)
-	}
-
-	// action.InitGlobals()
-
-	//init hook
-	err = config.RunPluginFn("init")
-	if err != nil {
-		app.TermMessage(err)
-	}
-
-	// m := clipboard.SetMethod(config.GetGlobalOption("clipboard").(string))
-	// go func() {
-	// clipErr := clipboard.Initialize(m)
-	//
-	// if clipErr != nil {
-	// log.Println(clipErr, " or change 'clipboard' option")
-	// }
-	// }()
-
-	//setup autosave
-	if a := config.GetGlobalOption("autosave").(float64); a > 0 {
-		config.SetAutoTime(int(a))
-		config.StartAutoSave()
-	}
+	pipe.WriteString(fmt.Sprintf("%s\n", strings.Join(args, " ")))
+	pipe.Close()
 
 	go func() {
+		<-app.Priv.(*subapp).Shutdown
+	}()
+
+	CloseApp(app, 0)
+}
+
+func ReadArgs(app pub.App) {
+	ch := make(chan string)
+	go func() {
 		for {
-			if err := cviewApp.Run(); err != nil {
-				panic(err)
+			select {
+			case flag := <-app.Priv.(*subapp).Shutdown:
+				app.Priv.(*subapp).Shutdown <- flag
+				break
+			case msg := <-ch:
+				fmt.Print(msg)
 			}
 		}
 	}()
+
+	//read input from secondary instance
+	reader := bufio.NewReader(app.Priv.(*subapp).Pipe)
+	for {
+		//check for message
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			log.Println("Error reading from named pipe")
+			log.Println(err)
+			CloseApp(app, 1)
+			return
+		}
+
+		//check for shutdown
+		select {
+		case flag := <-app.Priv.(*subapp).Shutdown:
+			app.Priv.(*subapp).Shutdown <- flag
+			break
+		case ch <- line:
+			//handle message
+		}
+	}
+}
+
+func HandleEvents(app pub.App) {
+	for {
+		select {
+		case <-sighup:
+			CloseApp(app, 0)
+			break
+		case <-sigterm:
+			CloseApp(app, 0)
+			break
+		case flag := <-app.Priv.(*subapp).Shutdown:
+			app.Priv.(*subapp).Shutdown <- flag
+			break
+		default:
+		}
+	}
+}
+
+func CloseApp(app pub.App, flag int) {
+	//send shutdown flag
+	app.Priv.(*subapp).Shutdown <- flag
+
+	//release single instance lock
+	if app.Priv.(*subapp).Lock != nil {
+		app.Priv.(*subapp).Lock.Close()
+	}
+	//close named pipe
+	if app.Priv.(*subapp).Pipe != nil {
+		app.Priv.(*subapp).Pipe.Close()
+	}
+	//close log
+	if app.Priv.(*subapp).Log != nil {
+		app.Priv.(*subapp).Log.Close()
+	}
+
+	os.Exit(flag)
+}
+
+func StartApp(app pub.App) {
+	//create view
+	v := view.NewView(app)
+	app.View = v
+
+	//setup server for secondary process creations
+	go ReadArgs(app)
+
+	//setup event handling routine
+	go HandleEvents(app)
+
+	//start UI
+	p := tea.NewProgram(v, tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		log.Printf("Error starting UI: %v", err)
+		CloseApp(app, 1)
+	}
 }
