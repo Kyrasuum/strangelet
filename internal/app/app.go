@@ -31,7 +31,6 @@ var (
 	flagVersion   = flag.Bool("version", false, "Show the version number and information")
 	flagConfigDir = flag.String("config-dir", "", "Specify a custom location for the configuration directory")
 	flagClean     = flag.Bool("clean", false, "Clean configuration directory")
-	optionFlags   map[string]*string
 
 	sigterm chan os.Signal
 	sighup  chan os.Signal
@@ -96,14 +95,14 @@ func NewApp() (app pub.App) {
 	LoadArgs(args)
 
 	//setup logging
-	priv.Log, err = os.OpenFile(config.GlobalSettings["logname"].(string), os.O_RDWR|os.O_CREATE, 0777)
+	priv.Log, err = os.OpenFile(filepath.Join(config.ConfigDir, config.GlobalSettings["logname"].(string)), os.O_RDWR|os.O_CREATE, 0777)
 	if err == nil {
 		log.SetOutput(priv.Log)
 	}
 
 	//create named pipe for IPC
-	os.Remove(config.GlobalSettings["pipename"].(string))
-	err = syscall.Mkfifo(config.GlobalSettings["pipename"].(string), 0666)
+	os.Remove(filepath.Join(config.ConfigDir, config.GlobalSettings["pipename"].(string)))
+	err = syscall.Mkfifo(filepath.Join(config.ConfigDir, config.GlobalSettings["pipename"].(string)), 0666)
 	if err != nil {
 		log.Println("Error making named pipe")
 		log.Println(err)
@@ -111,7 +110,7 @@ func NewApp() (app pub.App) {
 		return app
 	}
 	//open named pipe for IPC
-	priv.Pipe, err = os.OpenFile(config.GlobalSettings["pipename"].(string), os.O_RDWR, os.ModeNamedPipe)
+	priv.Pipe, err = os.OpenFile(filepath.Join(config.ConfigDir, config.GlobalSettings["pipename"].(string)), os.O_RDWR, os.ModeNamedPipe)
 
 	//setup clipboard
 	method := clipboard.SetMethod(config.GetGlobalOption("clipboard").(string))
@@ -142,12 +141,6 @@ func InitFlags() {
 		fmt.Println("-version")
 		fmt.Println("    \tShow the version number and information")
 		fmt.Println("[FILE]:LINE:COL")
-	}
-
-	optionFlags = make(map[string]*string)
-
-	for k, v := range config.DefaultAllSettings() {
-		optionFlags[k] = flag.String(k, "", fmt.Sprintf("The %s option. Default value: '%v'.", k, v))
 	}
 
 	flag.Parse()
@@ -212,7 +205,7 @@ func LoadArgs(args []string) []struct {
 
 func PassArgs(app pub.App, args []string) {
 	//get connection to locking instance
-	pipe, err := os.OpenFile(config.GlobalSettings["pipename"].(string), os.O_WRONLY, os.ModeNamedPipe)
+	pipe, err := os.OpenFile(filepath.Join(config.ConfigDir, config.GlobalSettings["pipename"].(string)), os.O_WRONLY, os.ModeNamedPipe)
 	if err != nil {
 		fmt.Println("Failed to open named pipe")
 		fmt.Println(err)

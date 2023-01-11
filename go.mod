@@ -6,6 +6,7 @@ require (
 	github.com/allan-simon/go-singleinstance v0.0.0-20210120080615-d0997106ab37
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/charmbracelet/bubbletea v0.23.1
+	github.com/charmbracelet/lipgloss v0.6.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/mattn/go-runewidth v0.0.14
 	github.com/mitchellh/go-homedir v1.1.0
