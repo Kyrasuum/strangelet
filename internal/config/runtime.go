@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 
 	rt "strangelet/runtime"
+
+	"github.com/zyedidia/highlight"
 )
 
 const (
@@ -19,7 +21,8 @@ const (
 )
 
 var (
-	NumTypes = 5 // How many filetypes are there
+	NumTypes   = 5 // How many filetypes are there
+	SyntaxDefs = []*highlight.Def{}
 )
 
 type RTFiletype int
@@ -166,4 +169,22 @@ func InitRuntimeFiles() {
 	add(RTSyntax, "syntax", "*.yaml")
 	add(RTSyntaxHeader, "syntax", "*.hdr")
 	add(RTHelp, "help", "*.md")
+
+	LoadDefinitions()
+}
+
+func LoadDefinitions() {
+	rtfiles := ListRuntimeFiles(RTSyntax)
+	for _, rtfile := range rtfiles {
+		SyntaxData, err := rtfile.Data()
+		if err != nil {
+			continue
+		}
+		syntaxDef, err := highlight.ParseDef(SyntaxData)
+		SyntaxDefs = append(SyntaxDefs, syntaxDef)
+	}
+}
+
+func DetectType(fileName string, firstLine []byte) *highlight.Def {
+	return highlight.DetectFiletype(SyntaxDefs, fileName, firstLine)
 }

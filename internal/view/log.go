@@ -1,11 +1,15 @@
 package view
 
 import (
+	logger "log"
+
 	pub "strangelet/pkg/app"
 
 	tea "github.com/charmbracelet/bubbletea"
 	lipgloss "github.com/charmbracelet/lipgloss"
 )
+
+type errorMsg error
 
 type log struct {
 	visible bool
@@ -28,6 +32,8 @@ func (l log) Init() tea.Cmd {
 func (l log) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return l.UpdateTyped(msg) }
 func (l log) UpdateTyped(msg tea.Msg) (log, tea.Cmd) {
 	switch msg := msg.(type) {
+	case errorMsg:
+		logger.Println(string(msg.Error()))
 	case tea.KeyMsg:
 		switch msg.String() {
 		}

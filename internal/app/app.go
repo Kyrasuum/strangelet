@@ -98,6 +98,10 @@ func NewApp() (app pub.App) {
 	priv.Log, err = os.OpenFile(filepath.Join(config.ConfigDir, config.GlobalSettings["logname"].(string)), os.O_RDWR|os.O_CREATE, 0777)
 	if err == nil {
 		log.SetOutput(priv.Log)
+	} else {
+		fmt.Println(err)
+		app.StartApp = func() { CloseApp(app, 1) }
+		return app
 	}
 
 	//create named pipe for IPC

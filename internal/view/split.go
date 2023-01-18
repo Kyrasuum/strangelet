@@ -31,9 +31,9 @@ type child struct {
 }
 
 var (
-	splitStyle       = lipgloss.NewStyle()
-	inactiveTabStyle = lipgloss.NewStyle().BorderStyle(lipgloss.HiddenBorder())
-	activeTabStyle   = inactiveTabStyle.Copy().BorderStyle(lipgloss.NormalBorder()).BorderForeground(highlightColor).Padding(0, 1)
+	splitStyle         = lipgloss.NewStyle()
+	inactiveSplitStyle = lipgloss.NewStyle()
+	activeSplitStyle   = inactiveSplitStyle.Copy()
 )
 
 const (
@@ -43,13 +43,12 @@ const (
 
 func NewSplit(app pub.App) split {
 	s := split{
-		direction: horizontal,
+		direction: vertical,
 		active:    0,
 		panes:     []child{},
 	}
 
-	s.panes = append(s.panes, child{size: .50, elem: NewPane(app)})
-	s.panes = append(s.panes, child{size: .50, elem: NewPane(app)})
+	s.panes = append(s.panes, child{size: 1, elem: NewPane(app)})
 
 	return s
 }
@@ -69,8 +68,6 @@ func (s split) UpdateTyped(msg tea.Msg) (split, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+n":
-		case "tab":
-			s.active = (s.active + 1) % len(s.panes)
 		}
 	case tea.MouseMsg:
 		// tea.MouseEvent(msg)
@@ -96,13 +93,27 @@ func (s split) ViewWH(w, h int) string {
 	pd := []string{}
 	for i := 0; i < len(s.panes); i++ {
 		if i == s.active {
-			pd = append(pd, activeTabStyle.Render(fmt.Sprintf("%4s", s.panes[i].elem.ViewWH(
-				int(math.Round(s.panes[i].size*float64(w)))-activeTabStyle.GetHorizontalFrameSize(),
-				h-activeTabStyle.GetVerticalFrameSize()))))
+			switch s.direction {
+			case horizontal:
+				pd = append(pd, activeSplitStyle.Render(fmt.Sprintf("%4s", s.panes[i].elem.ViewWH(
+					int(math.Round(s.panes[i].size*float64(w))),
+					h))))
+			case vertical:
+				pd = append(pd, activeSplitStyle.Render(fmt.Sprintf("%4s", s.panes[i].elem.ViewWH(
+					w,
+					int(math.Round(s.panes[i].size*float64(h)))))))
+			}
 		} else {
-			pd = append(pd, inactiveTabStyle.Render(s.panes[i].elem.ViewWH(
-				int(math.Round(s.panes[i].size*float64(w)))-activeTabStyle.GetHorizontalFrameSize(),
-				h-activeTabStyle.GetVerticalFrameSize())))
+			switch s.direction {
+			case horizontal:
+				pd = append(pd, inactiveSplitStyle.Render(fmt.Sprintf("%4s", s.panes[i].elem.ViewWH(
+					int(math.Round(s.panes[i].size*float64(w))),
+					h))))
+			case vertical:
+				pd = append(pd, inactiveSplitStyle.Render(fmt.Sprintf("%4s", s.panes[i].elem.ViewWH(
+					w,
+					int(math.Round(s.panes[i].size*float64(h)))))))
+			}
 		}
 	}
 
@@ -111,7 +122,7 @@ func (s split) ViewWH(w, h int) string {
 	case horizontal:
 		display += lipgloss.JoinHorizontal(lipgloss.Top, pd...)
 	case vertical:
-		display += lipgloss.JoinVertical(lipgloss.Top, pd...)
+		display += lipgloss.JoinVertical(lipgloss.Left, pd...)
 	}
 
 	return splitStyle.Width(w).Height(h).Render(display)
