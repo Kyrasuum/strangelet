@@ -1,6 +1,8 @@
 package view
 
 import (
+	config "strangelet/internal/config"
+	events "strangelet/internal/events"
 	pub "strangelet/pkg/app"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,6 +11,8 @@ import (
 
 type filebrowser struct {
 	visible bool
+
+	height int
 }
 
 var (
@@ -18,7 +22,9 @@ var (
 const ()
 
 func NewFileBrowser(app pub.App) filebrowser {
-	return filebrowser{}
+	return filebrowser{
+		visible: false,
+	}
 }
 
 func (fb filebrowser) Init() tea.Cmd {
@@ -27,9 +33,14 @@ func (fb filebrowser) Init() tea.Cmd {
 
 func (fb filebrowser) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return fb.UpdateTyped(msg) }
 func (fb filebrowser) UpdateTyped(msg tea.Msg) (filebrowser, tea.Cmd) {
+	var cmds []tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
+		if action, ok := config.Bindings["Filebrowser"][msg.String()]; ok {
+			if handler, ok := events.Actions[action]; ok {
+				cmds = append(cmds, handler(msg))
+			}
 		}
 	case tea.MouseMsg:
 		// tea.MouseEvent(msg)
@@ -37,10 +48,18 @@ func (fb filebrowser) UpdateTyped(msg tea.Msg) (filebrowser, tea.Cmd) {
 
 	// Return the updated model to the Bubble Tea runtime for processing.
 	// Note that we're not returning a command.
-	return fb, nil
+	return fb, tea.Batch(cmds...)
 }
 
-func (fb filebrowser) View() string { return fb.ViewH(0) }
-func (fb filebrowser) ViewH(h int) string {
-	return fbstyle.Height(h).Render("File Browser")
+func (fb filebrowser) View() string {
+	return fbstyle.Height(fb.height).Render("File Browser")
+}
+
+func (fb filebrowser) SetHeight(h int) {
+	fb.height = h
+}
+
+func (fb filebrowser) ToggleVisible() filebrowser {
+	fb.visible = !fb.visible
+	return fb
 }

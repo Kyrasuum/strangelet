@@ -1,15 +1,15 @@
 package view
 
 import (
+	config "strangelet/internal/config"
+	events "strangelet/internal/events"
 	pub "strangelet/pkg/app"
 
 	tea "github.com/charmbracelet/bubbletea"
 	lipgloss "github.com/charmbracelet/lipgloss"
 )
 
-type cmd struct {
-	visible bool
-}
+type cmd struct{}
 
 var (
 	cmdstyle = lipgloss.NewStyle()
@@ -27,9 +27,14 @@ func (c cmd) Init() tea.Cmd {
 
 func (c cmd) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return c.UpdateTyped(msg) }
 func (c cmd) UpdateTyped(msg tea.Msg) (cmd, tea.Cmd) {
+	var cmds []tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
+		if action, ok := config.Bindings["Split"][msg.String()]; ok {
+			if handler, ok := events.Actions[action]; ok {
+				cmds = append(cmds, handler(msg))
+			}
 		}
 	case tea.MouseMsg:
 		// tea.MouseEvent(msg)
@@ -37,7 +42,7 @@ func (c cmd) UpdateTyped(msg tea.Msg) (cmd, tea.Cmd) {
 
 	// Return the updated model to the Bubble Tea runtime for processing.
 	// Note that we're not returning a command.
-	return c, nil
+	return c, tea.Batch(cmds...)
 }
 
 func (c cmd) View() string { return c.ViewW(0) }

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 
+	config "strangelet/internal/config"
+	events "strangelet/internal/events"
 	pub "strangelet/pkg/app"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -66,8 +68,10 @@ func (s split) UpdateTyped(msg tea.Msg) (split, tea.Cmd) {
 	)
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+n":
+		if action, ok := config.Bindings["Split"][msg.String()]; ok {
+			if handler, ok := events.Actions[action]; ok {
+				cmds = append(cmds, handler(msg))
+			}
 		}
 	case tea.MouseMsg:
 		// tea.MouseEvent(msg)

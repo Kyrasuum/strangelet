@@ -72,6 +72,16 @@ func NewApp() (app pub.App) {
 		fmt.Println(err)
 		os.Exit(0)
 	}
+	err = config.InitColorscheme()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(0)
+	}
+	err = config.InitBindings()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(0)
+	}
 
 	//get single instance lock
 	lockFile, err := singleinstance.CreateLockFile(filepath.Join(config.ConfigDir, config.GlobalSettings["lockname"].(string)))

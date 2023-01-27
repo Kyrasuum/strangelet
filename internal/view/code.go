@@ -10,79 +10,11 @@ import (
 
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/knipferrc/teacup/dirfs"
 	"github.com/zyedidia/highlight"
 )
 
-var (
-	codeStyle      = paneStyle.Copy().Foreground(lipgloss.Color("#F8F8F2"))
-	statementStyle = codeStyle.Copy().Foreground(lipgloss.Color("#F92672"))
-	preprocStyle   = codeStyle.Copy().Foreground(lipgloss.Color("#CB4B16"))
-	specialStyle   = codeStyle.Copy().Foreground(lipgloss.Color("#A6E22E"))
-	stringStyle    = codeStyle.Copy().Foreground(lipgloss.Color("#E6DB74"))
-	charStyle      = codeStyle.Copy().Foreground(lipgloss.Color("#BDE6AD"))
-	typeStyle      = codeStyle.Copy().Foreground(lipgloss.Color("#66D9EF"))
-	numberStyle    = codeStyle.Copy().Foreground(lipgloss.Color("#AE81FF"))
-	commentStyle   = codeStyle.Copy().Foreground(lipgloss.Color("#75715E"))
-
-// symbol.bracket: symbol.bracket
-// brightblue: brightblue
-// comment.bright: comment.bright
-// constant: constant
-// keyword: keyword
-// constant.bool.false: constant.bool.false
-// preproc.shebang: preproc.shebang
-// symbol.tag: symbol.tag
-// magenta: magenta
-// error: error
-// yellow: yellow
-// default: default
-// type: type
-// indent-char.whitespace: indent-char.whitespace
-// brightcyan: brightcyan
-// brightwhite: brightwhite
-// comment: comment
-// type.keyword: type.keyword
-// constant.number: constant.number
-// symbol.operator: symbol.operator
-// type.extended: type.extended
-// constant.macro: constant.macro
-// bold default: bold default
-// special: special
-// identifier.var: identifier.var
-// brightyellow: brightyellow
-// operator: operator
-// statement: statement
-// identifier.macro: identifier.macro
-// black: black
-// brightmagenta: brightmagenta
-// symbol.tag.extended: symbol.tag.extended
-// ignore: ignore
-// todo: todo
-// preproc: preproc
-// symbol.brackets: symbol.brackets
-// constant.string.url: constant.string.url
-// identifier.micro: identifier.micro
-// constant.specialChar: constant.specialChar
-// symbol: symbol
-// constant.string: constant.string
-// brightgreen: brightgreen
-// red: red
-// green: green
-// cyan: cyan
-// constant.comment: constant.comment
-// identifier.class: identifier.class
-// underlined: underlined
-// blue: blue
-// constant.bool.true: constant.bool.true
-// brightred: brightred
-// indent-char: indent-char
-// brightblack: brightblack
-// constant-string: constant-string
-// identifier: identifier
-// constant.bool: constant.bool
-)
+var ()
 
 const ()
 
@@ -192,9 +124,36 @@ func (c code) UpdateTyped(msg tea.Msg) (code, tea.Cmd) {
 
 func (c code) View() string {
 	display := []string{}
+	var group highlight.Group = highlight.Group(len(highlight.Groups))
 
 	for _, line := range c.Content {
-		display = append(display, codeStyle.Render(fmt.Sprintf("%s", line.text)))
+		text := ""
+		for j := 0; j < len(line.text); j++ {
+			if newgrp, ok := line.match[j]; ok {
+				group = newgrp
+			}
+			if grp, ok := config.ColorGroups[group]; ok {
+				if style, ok := config.ColorScheme[grp]; ok {
+					//print using style group
+					text += style.Render(fmt.Sprintf("%s", []byte{line.text[j]}))
+				} else {
+					//look for parent defined style
+					style := config.ColorScheme["default"]
+					parents := append(strings.Split(grp, "."), strings.Split(grp, "-")...)
+					for i, _ := range parents[:len(parents)-1] {
+						parent := strings.Join(parents[:i], ".")
+						if parstyle, ok := config.ColorScheme[parent]; ok {
+							style = parstyle
+						}
+					}
+					text += style.Render(fmt.Sprintf("%s", []byte{line.text[j]}))
+				}
+			} else {
+				//default to default style
+				text += config.ColorScheme["default"].Render(fmt.Sprintf("%s", []byte{line.text[j]}))
+			}
+		}
+		display = append(display, text)
 	}
 
 	return "" + strings.Join(display, "\n")
@@ -213,25 +172,10 @@ func (c code) ViewWH(w, h int) string {
 			if newgrp, ok := line.match[j]; ok {
 				group = newgrp
 			}
-			switch group {
-			case highlight.Groups["statement"]:
-				text += statementStyle.Render(fmt.Sprintf("%s", []byte{line.text[j]}))
-			case highlight.Groups["preproc"]:
-				text += preprocStyle.Render(fmt.Sprintf("%s", []byte{line.text[j]}))
-			case highlight.Groups["special"]:
-				text += specialStyle.Render(fmt.Sprintf("%s", []byte{line.text[j]}))
-			case highlight.Groups["constant.string"]:
-				text += stringStyle.Render(fmt.Sprintf("%s", []byte{line.text[j]}))
-			case highlight.Groups["constant.specialChar"]:
-				text += charStyle.Render(fmt.Sprintf("%s", []byte{line.text[j]}))
-			case highlight.Groups["type"]:
-				text += typeStyle.Render(fmt.Sprintf("%s", []byte{line.text[j]}))
-			case highlight.Groups["constant.number"]:
-				text += numberStyle.Render(fmt.Sprintf("%s", []byte{line.text[j]}))
-			case highlight.Groups["comment"]:
-				text += commentStyle.Render(fmt.Sprintf("%s", []byte{line.text[j]}))
-			default:
-				text += codeStyle.Render(fmt.Sprintf("%s", []byte{line.text[j]}))
+			if grp, ok := config.ColorGroups[group]; ok {
+				text += config.ColorScheme[grp].Inherit(config.ColorScheme["background"]).Render(fmt.Sprintf("%s", []byte{line.text[j]}))
+			} else {
+				text += config.ColorScheme["default"].Inherit(config.ColorScheme["background"]).Render(fmt.Sprintf("%s", []byte{line.text[j]}))
 			}
 		}
 		display = append(display, text)

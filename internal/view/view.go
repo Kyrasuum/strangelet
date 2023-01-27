@@ -1,9 +1,8 @@
 package view
 
 import (
-	"fmt"
-
 	config "strangelet/internal/config"
+	events "strangelet/internal/events"
 	pub "strangelet/pkg/app"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,17 +16,21 @@ type view struct {
 	width  int
 	height int
 
-	s  split
-	fb filebrowser
-	l  log
-	c  cmd
-	sb statusbar.Bubble
+	s  *split
+	fb *filebrowser
+	l  *logWindow
+	c  *cmd
+	sb *statusbar.Bubble
 }
 
 var (
-	highlightColor   = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
-	inactiveWinStyle = lipgloss.NewStyle()
-	activeWinStyle   = inactiveWinStyle.Copy()
+	highlightColor = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
+	scopes         = map[int]string{
+		splitView: "Split",
+		filesView: "File Browser",
+		logView:   "Log Window",
+		cmdView:   "Command Bar",
+	}
 )
 
 const (
@@ -38,34 +41,40 @@ const (
 )
 
 func NewView(app pub.App) view {
+	s := NewSplit(app)
+	fb := NewFileBrowser(app)
+	l := NewLog(app)
+	c := NewCmd(app)
+	sb := statusbar.New(
+		statusbar.ColorConfig{
+			Foreground: lipgloss.AdaptiveColor{Dark: "#ffffff", Light: "#ffffff"},
+			Background: lipgloss.AdaptiveColor{Light: "#F25D94", Dark: "#F25D94"},
+		},
+		statusbar.ColorConfig{
+			Foreground: lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#ffffff"},
+			Background: lipgloss.AdaptiveColor{Light: "#3c3836", Dark: "#3c3836"},
+		},
+		statusbar.ColorConfig{
+			Foreground: lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#ffffff"},
+			Background: lipgloss.AdaptiveColor{Light: "#A550DF", Dark: "#A550DF"},
+		},
+		statusbar.ColorConfig{
+			Foreground: lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#ffffff"},
+			Background: lipgloss.AdaptiveColor{Light: "#6124DF", Dark: "#6124DF"},
+		},
+	)
+
 	v := view{
-		active: 0,
+		active: splitView,
 
 		width:  0,
 		height: 0,
 
-		s:  NewSplit(app),
-		fb: NewFileBrowser(app),
-		l:  NewLog(app),
-		c:  NewCmd(app),
-		sb: statusbar.New(
-			statusbar.ColorConfig{
-				Foreground: lipgloss.AdaptiveColor{Dark: "#ffffff", Light: "#ffffff"},
-				Background: lipgloss.AdaptiveColor{Light: "#F25D94", Dark: "#F25D94"},
-			},
-			statusbar.ColorConfig{
-				Foreground: lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#ffffff"},
-				Background: lipgloss.AdaptiveColor{Light: "#3c3836", Dark: "#3c3836"},
-			},
-			statusbar.ColorConfig{
-				Foreground: lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#ffffff"},
-				Background: lipgloss.AdaptiveColor{Light: "#A550DF", Dark: "#A550DF"},
-			},
-			statusbar.ColorConfig{
-				Foreground: lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#ffffff"},
-				Background: lipgloss.AdaptiveColor{Light: "#6124DF", Dark: "#6124DF"},
-			},
-		),
+		s:  &s,
+		fb: &fb,
+		l:  &l,
+		c:  &c,
+		sb: &sb,
 	}
 
 	return v
@@ -82,26 +91,45 @@ func (v view) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	)
 
 	switch msg := msg.(type) {
+	// These keys should exit the program.
+	case events.FocusCommand:
+		if v.active != cmdView {
+			v.active = cmdView
+		} else {
+			v.active = splitView
+		}
+	case events.ToggleLogWindow:
+		*v.l = v.l.ToggleVisible()
+	case events.ToggleFileBrowser:
+		*v.fb = v.fb.ToggleVisible()
+		if v.fb.visible {
+			v.active = filesView
+		} else {
+			v.active = splitView
+		}
+	case events.FocusFileBrowser:
+		if v.active != filesView {
+			v.active = filesView
+		} else {
+			v.active = splitView
+		}
+	case events.CloseApp:
+		return v, tea.Quit
 	case tea.WindowSizeMsg:
 		v.sb.SetSize(msg.Width)
 		v.sb.SetContent("test.txt", "~/.config/nvim", "1/23", "SB")
 		v.width = msg.Width
 		v.height = msg.Height
+
+		c := v.c.ViewW(v.width)
+		sb := v.sb.View()
+		h := v.height - lipgloss.Height(c) - lipgloss.Height(sb)
+		v.fb.SetHeight(h)
+		v.l.SetHeight(h)
 	case tea.KeyMsg:
-		switch msg.String() {
-		// These keys should exit the program.
-		case "ctrl+c", "esc", "q":
-			return v, tea.Quit
-		case "tab":
-			switch v.active {
-			case splitView:
-				v.active = filesView
-			case filesView:
-				v.active = logView
-			case logView:
-				v.active = cmdView
-			case cmdView:
-				v.active = splitView
+		if action, ok := config.Bindings["Global"][msg.String()]; ok {
+			if handler, ok := events.Actions[action]; ok {
+				cmds = append(cmds, handler(msg))
 			}
 		}
 	case tea.MouseMsg:
@@ -116,17 +144,32 @@ func (v view) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch v.active {
 	case splitView:
-		v.s, cmd = v.s.UpdateTyped(msg)
+		*v.s, cmd = v.s.UpdateTyped(msg)
 		cmds = append(cmds, cmd)
 	case filesView:
-		v.fb, cmd = v.fb.UpdateTyped(msg)
-		cmds = append(cmds, cmd)
-	case logView:
-		v.l, cmd = v.l.UpdateTyped(msg)
+		*v.fb, cmd = v.fb.UpdateTyped(msg)
 		cmds = append(cmds, cmd)
 	case cmdView:
-		v.c, cmd = v.c.UpdateTyped(msg)
+		*v.c, cmd = v.c.UpdateTyped(msg)
 		cmds = append(cmds, cmd)
+	}
+
+	*v.l, cmd = v.l.UpdateTyped(msg)
+	cmds = append(cmds, cmd)
+
+	empty := true
+	for _, cmd := range cmds {
+		if cmd != nil {
+			empty = false
+		}
+	}
+	if empty {
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			cmds = append(cmds, func() tea.Msg {
+				return events.LogMessage("Unknown Keybind for scope[Global, " + scopes[v.active] + "]: " + msg.String())
+			})
+		}
 	}
 
 	// Return the updated model to the Bubble Tea runtime for processing.
@@ -136,30 +179,22 @@ func (v view) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (v view) View() string {
 	//initial render
-	c := inactiveWinStyle.Render(v.c.ViewW(v.width - inactiveWinStyle.GetHorizontalFrameSize()))
+	c := v.c.ViewW(v.width)
 	sb := v.sb.View()
-	fb := inactiveWinStyle.Render(v.fb.ViewH(v.height - lipgloss.Height(c) - lipgloss.Height(sb) - inactiveWinStyle.GetVerticalFrameSize()))
-	l := inactiveWinStyle.Render(v.l.ViewH(v.height - lipgloss.Height(c) - lipgloss.Height(sb) - inactiveWinStyle.GetVerticalFrameSize()))
-	s := inactiveWinStyle.Render(v.s.ViewWH(
-		v.width-lipgloss.Width(fb)-lipgloss.Width(l)-inactiveWinStyle.GetHorizontalFrameSize(),
-		v.height-lipgloss.Height(c)-lipgloss.Height(sb)-inactiveWinStyle.GetVerticalFrameSize()))
 
-	//switch to highlight
-	switch v.active {
-	case splitView:
-		s = activeWinStyle.Render(fmt.Sprintf("%4s", v.s.ViewWH(
-			v.width-lipgloss.Width(fb)-lipgloss.Width(l)-activeWinStyle.GetHorizontalFrameSize(),
-			v.height-lipgloss.Height(c)-lipgloss.Height(sb)-activeWinStyle.GetVerticalFrameSize())))
-	case filesView:
-		fb = activeWinStyle.Render(fmt.Sprintf("%4s", v.fb.ViewH(
-			v.height-lipgloss.Height(c)-lipgloss.Height(sb)-activeWinStyle.GetVerticalFrameSize())))
-	case logView:
-		l = activeWinStyle.Render(fmt.Sprintf("%4s", v.l.ViewH(
-			v.height-lipgloss.Height(c)-lipgloss.Height(sb)-activeWinStyle.GetVerticalFrameSize())))
-	case cmdView:
-		c = activeWinStyle.Render(fmt.Sprintf("%4s", v.c.ViewW(
-			v.width-activeWinStyle.GetHorizontalFrameSize())))
+	fb := ""
+	l := ""
+
+	if v.fb.visible {
+		fb = v.fb.View()
 	}
+	if v.l.visible {
+		l = v.l.View()
+	}
+
+	s := v.s.ViewWH(
+		v.width-lipgloss.Width(fb)-lipgloss.Width(l),
+		v.height-lipgloss.Height(c)-lipgloss.Height(sb))
 
 	display := lipgloss.JoinVertical(lipgloss.Left, lipgloss.JoinHorizontal(lipgloss.Top, fb, s, l), sb, c)
 

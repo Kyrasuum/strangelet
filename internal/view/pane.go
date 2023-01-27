@@ -1,6 +1,7 @@
 package view
 
 import (
+	events "strangelet/internal/events"
 	pub "strangelet/pkg/app"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -57,16 +58,13 @@ func (p pane) UpdateTyped(msg tea.Msg) (pane, tea.Cmd) {
 	var (
 		cmds []tea.Cmd
 	)
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+t":
-			c := NewCode()
-			cmd := c.OpenFile("internal/view/view.go")
-			p.tabContent = append(p.tabContent, c)
-			p.tabs = append(p.tabs, "internal/view/view.go")
-			cmds = append(cmds, cmd)
-		}
+	switch msg.(type) {
+	case events.NewTabMsg:
+		c := NewCode()
+		cmd := c.OpenFile("internal/view/view.go")
+		p.tabContent = append(p.tabContent, c)
+		p.tabs = append(p.tabs, "internal/view/view.go")
+		cmds = append(cmds, cmd)
 	case tea.MouseMsg:
 		// tea.MouseEvent(msg)
 	}
