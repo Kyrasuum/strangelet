@@ -9,7 +9,9 @@ import (
 	lipgloss "github.com/charmbracelet/lipgloss"
 )
 
-type cmd struct{}
+type cmd struct {
+	active bool
+}
 
 var (
 	cmdstyle = lipgloss.NewStyle()
@@ -18,14 +20,17 @@ var (
 const ()
 
 func NewCmd(app pub.App) cmd {
-	return cmd{}
+	return cmd{
+		active: false,
+	}
 }
 
 func (c cmd) Init() tea.Cmd {
 	return nil
 }
 
-func (c cmd) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return c.UpdateTyped(msg) }
+func (c cmd) Update(msg tea.Msg) (tea.Model, tea.Cmd)    { return c.UpdateTyped(msg) }
+func (c cmd) UpdateI(msg tea.Msg) (interface{}, tea.Cmd) { return c.UpdateTyped(msg) }
 func (c cmd) UpdateTyped(msg tea.Msg) (cmd, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -48,4 +53,10 @@ func (c cmd) UpdateTyped(msg tea.Msg) (cmd, tea.Cmd) {
 func (c cmd) View() string { return c.ViewW(0) }
 func (c cmd) ViewW(w int) string {
 	return cmdstyle.Width(w).Render("Cmd")
+}
+func (c cmd) ViewWH(w int, h int) string { return c.ViewW(w) }
+
+func (c cmd) SetActive(b bool) elem {
+	c.active = b
+	return c
 }

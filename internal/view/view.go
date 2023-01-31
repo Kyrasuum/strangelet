@@ -95,23 +95,29 @@ func (v view) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case events.FocusCommand:
 		if v.active != cmdView {
 			v.active = cmdView
+			v.s.SetActive(false)
 		} else {
 			v.active = splitView
+			v.s.SetActive(true)
 		}
 	case events.ToggleLogWindow:
 		*v.l = v.l.ToggleVisible()
 	case events.ToggleFileBrowser:
 		*v.fb = v.fb.ToggleVisible()
 		if v.fb.visible {
+			v.s.SetActive(false)
 			v.active = filesView
 		} else {
 			v.active = splitView
+			v.s.SetActive(true)
 		}
 	case events.FocusFileBrowser:
 		if v.active != filesView {
 			v.active = filesView
+			v.s.SetActive(false)
 		} else {
 			v.active = splitView
+			v.s.SetActive(true)
 		}
 	case events.CloseApp:
 		return v, tea.Quit

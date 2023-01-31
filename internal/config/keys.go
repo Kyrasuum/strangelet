@@ -177,9 +177,13 @@ func DefaultBindings(scope string) map[string]string {
 			"ctrl+e":     "FocusCommand",
 		}
 	case "LogWindow":
-		return map[string]string{}
+		return map[string]string{
+			"ctrl+q": "ToggleLogWindow",
+		}
 	case "Filebrowser":
-		return map[string]string{}
+		return map[string]string{
+			"ctrl+q": "ToggleFileBrowser",
+		}
 	case "Split":
 		return map[string]string{
 			"ctrl+n":     "NewSplit",
@@ -199,7 +203,9 @@ func DefaultBindings(scope string) map[string]string {
 			"right": "CursorRight",
 		}
 	case "Terminal":
-		return map[string]string{}
+		return map[string]string{
+			"ctrl+q": "FocusCommand",
+		}
 	default:
 		return map[string]string{}
 	}

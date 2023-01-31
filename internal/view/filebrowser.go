@@ -11,6 +11,7 @@ import (
 
 type filebrowser struct {
 	visible bool
+	active  bool
 
 	height int
 }
@@ -31,7 +32,8 @@ func (fb filebrowser) Init() tea.Cmd {
 	return nil
 }
 
-func (fb filebrowser) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return fb.UpdateTyped(msg) }
+func (fb filebrowser) Update(msg tea.Msg) (tea.Model, tea.Cmd)    { return fb.UpdateTyped(msg) }
+func (fb filebrowser) UpdateI(msg tea.Msg) (interface{}, tea.Cmd) { return fb.UpdateTyped(msg) }
 func (fb filebrowser) UpdateTyped(msg tea.Msg) (filebrowser, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -52,8 +54,12 @@ func (fb filebrowser) UpdateTyped(msg tea.Msg) (filebrowser, tea.Cmd) {
 }
 
 func (fb filebrowser) View() string {
-	return fbstyle.Height(fb.height).Width(int(config.GlobalSettings["fbwidth"].(float64))).Render("File Browser")
+	return fbstyle.
+		Height(fb.height).
+		Width(int(config.GlobalSettings["fbwidth"].(float64))).
+		Render("File Browser:")
 }
+func (fb filebrowser) ViewWH(w int, h int) string { return fb.View() }
 
 func (fb filebrowser) SetHeight(h int) {
 	fb.height = h
@@ -61,5 +67,10 @@ func (fb filebrowser) SetHeight(h int) {
 
 func (fb filebrowser) ToggleVisible() filebrowser {
 	fb.visible = !fb.visible
+	return fb
+}
+
+func (fb filebrowser) SetActive(b bool) elem {
+	fb.active = b
 	return fb
 }

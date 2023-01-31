@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="./strangelet.svg" width="400" height="400" />
+    <img src="./strangelet.png" width="400" height="400" />
 </div>
 
 # Strangelet

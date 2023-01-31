@@ -133,8 +133,8 @@ func (s split) ViewWH(w, h int) string {
 }
 
 func (s split) SetActive(b bool) split {
-	for i, p := range s.panes {
-		s.panes[i] = p.SetActive(b)
+	if len(s.panes) > 0 {
+		s.panes[s.active] = s.panes[s.active].SetActive(b)
 	}
 	return s
 }

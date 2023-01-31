@@ -186,8 +186,8 @@ func (p pane) ViewWH(w, h int) string {
 }
 
 func (p pane) SetActive(b bool) elem {
-	for i, t := range p.tabContent {
-		p.tabContent[i] = t.SetActive(b)
+	if len(p.tabs) > 0 {
+		p.tabContent[p.active] = p.tabContent[p.active].SetActive(b)
 	}
 	return p
 }
