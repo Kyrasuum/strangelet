@@ -52,7 +52,7 @@ func (fb filebrowser) UpdateTyped(msg tea.Msg) (filebrowser, tea.Cmd) {
 }
 
 func (fb filebrowser) View() string {
-	return fbstyle.Height(fb.height).Render("File Browser")
+	return fbstyle.Height(fb.height).Width(int(config.GlobalSettings["fbwidth"].(float64))).Render("File Browser")
 }
 
 func (fb filebrowser) SetHeight(h int) {

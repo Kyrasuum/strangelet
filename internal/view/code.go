@@ -2,7 +2,6 @@ package view
 
 import (
 	"fmt"
-	logger "log"
 	"strings"
 
 	"strangelet/internal/config"
@@ -18,6 +17,16 @@ var ()
 
 const ()
 
+type Pos struct {
+	x int64
+	y int64
+}
+
+type Cursor struct {
+	begin *Pos
+	end   *Pos
+}
+
 type line struct {
 	text  string
 	match highlight.LineMatch
@@ -31,6 +40,10 @@ type code struct {
 	Filename string
 	Syntax   *highlight.Highlighter
 	Content
+
+	Cursors []Cursor
+
+	active bool
 }
 
 type syntaxMsg Content
@@ -75,6 +88,8 @@ func (c *code) OpenFile(filename string) tea.Cmd {
 			return errorMsg(err)
 		}
 
+		pos := &Pos{x: 0, y: 0}
+		c.Cursors = []Cursor{Cursor{begin: pos, end: pos}}
 		c.Filename = filename
 		return syntaxMsg(lines)
 	}
@@ -87,10 +102,15 @@ func NewCode() code {
 	viewPort.Placeholder = ""
 	viewPort.ShowLineNumbers = true
 
-	return code{
+	c := code{
 		Filename: "",
 		Content:  map[int]*line{},
+		Cursors:  []Cursor{},
+
+		active: true,
 	}
+
+	return c
 }
 
 func (c code) Init() tea.Cmd {
@@ -107,10 +127,6 @@ func (c code) UpdateTyped(msg tea.Msg) (code, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case syntaxMsg:
-		for name, grp := range highlight.Groups {
-			logger.Printf("%+v: %+v\n", name, grp)
-		}
-
 		c.Content = Content(msg)
 		return c, nil
 	case lineErrorMsg:
@@ -173,9 +189,17 @@ func (c code) ViewWH(w, h int) string {
 				group = newgrp
 			}
 			if grp, ok := config.ColorGroups[group]; ok {
-				text += config.ColorScheme[grp].Inherit(config.ColorScheme["background"]).Render(fmt.Sprintf("%s", []byte{line.text[j]}))
+				if c.active {
+					text += config.ColorScheme[grp].Inherit(config.ColorScheme["background"]).Render(fmt.Sprintf("%s", []byte{line.text[j]}))
+				} else {
+					text += config.ColorScheme[grp+"-inactive"].Inherit(config.ColorScheme["background-inactive"]).Render(fmt.Sprintf("%s", []byte{line.text[j]}))
+				}
 			} else {
-				text += config.ColorScheme["default"].Inherit(config.ColorScheme["background"]).Render(fmt.Sprintf("%s", []byte{line.text[j]}))
+				if c.active {
+					text += config.ColorScheme["default"].Inherit(config.ColorScheme["background"]).Render(fmt.Sprintf("%s", []byte{line.text[j]}))
+				} else {
+					text += config.ColorScheme["default-inactive"].Inherit(config.ColorScheme["background-inactive"]).Render(fmt.Sprintf("%s", []byte{line.text[j]}))
+				}
 			}
 		}
 		display = append(display, text)
@@ -217,4 +241,9 @@ func (c code) SetMatch(lineN int, m highlight.LineMatch) {
 }
 func (c Content) SetMatch(lineN int, m highlight.LineMatch) {
 	c[lineN].match = m
+}
+
+func (c code) SetActive(b bool) elem {
+	c.active = b
+	return c
 }

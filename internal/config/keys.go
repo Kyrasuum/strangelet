@@ -170,11 +170,11 @@ func DefaultBindings(scope string) map[string]string {
 	switch scope {
 	case "Global":
 		return map[string]string{
-			"ctrl+q": "Quit",
-			"alt+k":  "FocusFileBrowser",
-			"ctrl+k": "ToggleFileBrowser",
-			"ctrl+l": "ToggleLogWindow",
-			"ctrl+e": "FocusCommand",
+			"alt+ctrl+q": "Quit",
+			"alt+k":      "FocusFileBrowser",
+			"ctrl+k":     "ToggleFileBrowser",
+			"ctrl+l":     "ToggleLogWindow",
+			"ctrl+e":     "FocusCommand",
 		}
 	case "LogWindow":
 		return map[string]string{}
@@ -182,12 +182,21 @@ func DefaultBindings(scope string) map[string]string {
 		return map[string]string{}
 	case "Split":
 		return map[string]string{
-			"ctrl+n": "NewSplit",
-			// "":           "CloseSplit",
+			"ctrl+n":     "NewSplit",
+			"alt+q":      "CloseSplit",
+			"alt+ctrl+s": "NextSplit",
+			"alt+ctrl+x": "PrevSplit",
 
+			"alt+s":  "NextTab",
+			"alt+x":  "PrevTab",
 			"ctrl+t": "NewTab",
 			"ctrl+s": "SaveTab",
-			// "":           "CloseTab",
+			"ctrl+q": "CloseTab",
+
+			"up":    "CursorUp",
+			"down":  "CursorDown",
+			"left":  "CursorLeft",
+			"right": "CursorRight",
 		}
 	case "Terminal":
 		return map[string]string{}

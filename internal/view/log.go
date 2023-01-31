@@ -3,6 +3,7 @@ package view
 import (
 	"log"
 
+	config "strangelet/internal/config"
 	events "strangelet/internal/events"
 	pub "strangelet/pkg/app"
 
@@ -53,7 +54,7 @@ func (l logWindow) UpdateTyped(msg tea.Msg) (logWindow, tea.Cmd) {
 }
 
 func (l logWindow) View() string {
-	return logstyle.Height(l.height).Render("Log:\n" + l.log)
+	return logstyle.Height(l.height).Width(int(config.GlobalSettings["logwidth"].(float64))).Render("Log:\n" + l.log)
 }
 
 func (l logWindow) SetHeight(h int) {

@@ -1,11 +1,11 @@
 package view
 
 import (
-	"fmt"
 	"math"
 
 	config "strangelet/internal/config"
 	events "strangelet/internal/events"
+	util "strangelet/internal/util"
 	pub "strangelet/pkg/app"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,27 +15,20 @@ import (
 type split struct {
 	active    int
 	direction int
-	panes     []child
+	panes     []elem
 
-	lastw int
-	lasth int
+	size float64
 }
 
 type elem interface {
 	tea.Model
 	ViewWH(int, int) string
 	UpdateI(tea.Msg) (interface{}, tea.Cmd)
-}
-
-type child struct {
-	elem
-	size float64
+	SetActive(bool) elem
 }
 
 var (
-	splitStyle         = lipgloss.NewStyle()
-	inactiveSplitStyle = lipgloss.NewStyle()
-	activeSplitStyle   = inactiveSplitStyle.Copy()
+	splitStyle = lipgloss.NewStyle()
 )
 
 const (
@@ -47,10 +40,10 @@ func NewSplit(app pub.App) split {
 	s := split{
 		direction: vertical,
 		active:    0,
-		panes:     []child{},
+		panes:     []elem{},
 	}
 
-	s.panes = append(s.panes, child{size: 1, elem: NewPane(app)})
+	s.panes = append(s.panes, NewPane())
 
 	return s
 }
@@ -67,6 +60,29 @@ func (s split) UpdateTyped(msg tea.Msg) (split, tea.Cmd) {
 		cmds []tea.Cmd
 	)
 	switch msg := msg.(type) {
+	case events.NewSplitMsg:
+		s.panes = append(s.panes, NewPane())
+	case events.CloseSplitMsg:
+		if len(s.panes) > 1 {
+			s.panes = append(s.panes[:s.active], s.panes[s.active+1:]...)
+			s.active = (util.Max(0, s.active-1)) % len(s.panes)
+		} else {
+			cmds = append(cmds, events.Actions["Quit"](msg))
+		}
+	case events.PrevSplitMsg:
+		s.panes[s.active].SetActive(false)
+		s.active = (s.active - 1 + len(s.panes)) % len(s.panes)
+		s.panes[s.active].SetActive(true)
+		cmds = append(cmds, func() tea.Msg {
+			return ""
+		})
+	case events.NextSplitMsg:
+		s.panes[s.active].SetActive(false)
+		s.active = (s.active + 1) % len(s.panes)
+		s.panes[s.active].SetActive(true)
+		cmds = append(cmds, func() tea.Msg {
+			return ""
+		})
 	case tea.KeyMsg:
 		if action, ok := config.Bindings["Split"][msg.String()]; ok {
 			if handler, ok := events.Actions[action]; ok {
@@ -80,8 +96,8 @@ func (s split) UpdateTyped(msg tea.Msg) (split, tea.Cmd) {
 		case tea.MouseWheelDown:
 		}
 	}
-	e, cmd := s.panes[s.active].elem.Update(msg)
-	s.panes[s.active].elem = e.(elem)
+	e, cmd := s.panes[s.active].Update(msg)
+	s.panes[s.active] = e.(elem)
 	cmds = append(cmds, cmd)
 
 	// Return the updated model to the Bubble Tea runtime for processing.
@@ -91,33 +107,17 @@ func (s split) UpdateTyped(msg tea.Msg) (split, tea.Cmd) {
 
 func (s split) View() string { return s.ViewWH(0, 0) }
 func (s split) ViewWH(w, h int) string {
-	s.lastw = w
-	s.lasth = h
-
 	pd := []string{}
 	for i := 0; i < len(s.panes); i++ {
-		if i == s.active {
-			switch s.direction {
-			case horizontal:
-				pd = append(pd, activeSplitStyle.Render(fmt.Sprintf("%4s", s.panes[i].elem.ViewWH(
-					int(math.Round(s.panes[i].size*float64(w))),
-					h))))
-			case vertical:
-				pd = append(pd, activeSplitStyle.Render(fmt.Sprintf("%4s", s.panes[i].elem.ViewWH(
-					w,
-					int(math.Round(s.panes[i].size*float64(h)))))))
-			}
-		} else {
-			switch s.direction {
-			case horizontal:
-				pd = append(pd, inactiveSplitStyle.Render(fmt.Sprintf("%4s", s.panes[i].elem.ViewWH(
-					int(math.Round(s.panes[i].size*float64(w))),
-					h))))
-			case vertical:
-				pd = append(pd, inactiveSplitStyle.Render(fmt.Sprintf("%4s", s.panes[i].elem.ViewWH(
-					w,
-					int(math.Round(s.panes[i].size*float64(h)))))))
-			}
+		switch s.direction {
+		case horizontal:
+			pd = append(pd, splitStyle.Render(s.panes[i].ViewWH(
+				int(math.Round(float64(w-1*i%2)/float64(len(s.panes)))),
+				h)))
+		case vertical:
+			pd = append(pd, splitStyle.Render(s.panes[i].ViewWH(
+				w,
+				int(math.Round(float64(h-1*i%2)/float64(len(s.panes)))))))
 		}
 	}
 
@@ -130,4 +130,11 @@ func (s split) ViewWH(w, h int) string {
 	}
 
 	return splitStyle.Width(w).Height(h).Render(display)
+}
+
+func (s split) SetActive(b bool) split {
+	for i, p := range s.panes {
+		s.panes[i] = p.SetActive(b)
+	}
+	return s
 }

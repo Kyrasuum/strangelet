@@ -62,12 +62,20 @@
 "diff-added" "" "#00AF00"
 "diff-modified" "" "#FFAF00"
 "diff-deleted" "" "#D70000"
+
 "gutter-error" "" "#CB4B16"
 "gutter-warning" "" "#E6DB74"
-"cursor-line" "" "#323232"
+
 "color-column" "" "#323232"
-"tabbar" "" "#282828,#F8F8F2"
-"current-line-number" "" "#AAAAAA"
+
+"cursor-line" "" "#323232"
 "line-number" "" "#AAAAAA,#323232"
+"current-line-number" "" "#AAAAAA"
+
 "suggestions" "" "#282828,#909090"
+
+"tabbar" "" "#282828,#F8F8F2"
+"active-tab" "" "#282828,#F8F8F2"
+"inactive-tab" "" "#828282,#F8F8F2"
+
 "statusline" "" "#282828,#A8A8A2"

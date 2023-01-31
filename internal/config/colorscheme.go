@@ -2,17 +2,19 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/zyedidia/highlight"
+	lipgloss "github.com/charmbracelet/lipgloss"
+	colorful "github.com/lucasb-eyer/go-colorful"
+	highlight "github.com/zyedidia/highlight"
 )
 
 const ()
 
 var (
-	ColorScheme map[string]lipgloss.Style
+	ColorScheme map[string]lipgloss.Style = make(map[string]lipgloss.Style)
 	ColorGroups map[highlight.Group]string
 )
 
@@ -23,6 +25,12 @@ func ColorschemeExists(colorschemeName string) bool {
 
 // InitColorscheme picks and initializes the colorscheme when micro starts
 func InitColorscheme() error {
+	initColorscheme()
+
+	return LoadDefaultColorscheme()
+}
+
+func initColorscheme() {
 	ColorScheme = make(map[string]lipgloss.Style)
 	ColorGroups = make(map[highlight.Group]string)
 
@@ -30,17 +38,26 @@ func InitColorscheme() error {
 		ColorScheme[name] = lipgloss.NewStyle()
 		ColorGroups[grp] = name
 	}
-
-	return LoadDefaultColorscheme()
 }
 
 // LoadDefaultColorscheme loads the default colorscheme from $(ConfigDir)/colorschemes
 func LoadDefaultColorscheme() error {
-	return LoadColorscheme(GlobalSettings["colorscheme"].(string))
+	return loadColorscheme(GlobalSettings["colorscheme"].(string))
 }
 
-// LoadColorscheme loads the given colorscheme from a directory
+// LoadColorscheme loads the given colorscheme based of default
 func LoadColorscheme(colorschemeName string) error {
+	initColorscheme()
+
+	err := LoadColorscheme(GlobalSettings["colorscheme"].(string))
+	if err != nil {
+		return err
+	}
+	return loadColorscheme(colorschemeName)
+}
+
+// loadColorscheme loads the given colorscheme from a directory
+func loadColorscheme(colorschemeName string) error {
 	file := FindRuntimeFile(RTColorscheme, colorschemeName)
 	if file == nil {
 		return errors.New(colorschemeName + " is not a valid colorscheme")
@@ -86,6 +103,10 @@ func ParseColorscheme(text string) (map[string]lipgloss.Style, error) {
 
 	c := make(map[string]lipgloss.Style)
 
+	for key, style := range ColorScheme {
+		c[key] = style
+	}
+
 	for _, line := range lines {
 		if strings.TrimSpace(line) == "" ||
 			strings.TrimSpace(line)[0] == '#' {
@@ -106,6 +127,23 @@ func ParseColorscheme(text string) (map[string]lipgloss.Style, error) {
 		} else {
 			err = errors.New("Color-link statement is not valid: " + line)
 		}
+	}
+
+	//create inactive colors
+	for key, style := range c {
+		fg, err := colorful.Hex(fmt.Sprintf("%+v", style.GetForeground()))
+		if err != nil {
+			continue
+		}
+		bg, err := colorful.Hex(fmt.Sprintf("%+v", style.GetBackground()))
+		if err != nil {
+			c[key+"-inactive"] = style.Copy()
+		}
+		fg.R -= (fg.R - bg.R) / 2
+		fg.G -= (fg.G - bg.G) / 2
+		fg.B -= (fg.B - bg.B) / 2
+
+		c[key+"-inactive"] = style.Copy().Foreground(lipgloss.Color(fg.Hex()))
 	}
 
 	return c, err
