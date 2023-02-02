@@ -13,7 +13,6 @@ import (
 	"strings"
 	"syscall"
 
-	clipboard "strangelet/internal/clipboard"
 	config "strangelet/internal/config"
 	util "strangelet/internal/util"
 	view "strangelet/internal/view"
@@ -105,6 +104,7 @@ func NewApp() (app pub.App) {
 	LoadArgs(args)
 
 	//setup logging
+	os.Remove(filepath.Join(config.ConfigDir, config.GlobalSettings["logname"].(string)))
 	priv.Log, err = os.OpenFile(filepath.Join(config.ConfigDir, config.GlobalSettings["logname"].(string)), os.O_RDWR|os.O_CREATE, 0777)
 	if err == nil {
 		log.SetOutput(priv.Log)
@@ -125,13 +125,6 @@ func NewApp() (app pub.App) {
 	}
 	//open named pipe for IPC
 	priv.Pipe, err = os.OpenFile(filepath.Join(config.ConfigDir, config.GlobalSettings["pipename"].(string)), os.O_RDWR, os.ModeNamedPipe)
-
-	//setup clipboard
-	method := clipboard.SetMethod(config.GetGlobalOption("clipboard").(string))
-	err = clipboard.Initialize(method)
-	if err != nil {
-		log.Println(err, " or change 'clipboard' option")
-	}
 
 	//setup signal handlers
 	sigterm = make(chan os.Signal, 1)
@@ -306,7 +299,6 @@ func CloseApp(app pub.App, flag int) {
 	if app.Priv.(*subapp).Log != nil {
 		app.Priv.(*subapp).Log.Close()
 	}
-
 	os.Exit(flag)
 }
 
@@ -322,9 +314,10 @@ func StartApp(app pub.App) {
 	go HandleEvents(app)
 
 	//start UI
-	p := tea.NewProgram(v, tea.WithAltScreen())
+	p := tea.NewProgram(v, tea.WithAltScreen(), tea.WithMouseAllMotion(), tea.WithoutSignalHandler())
 	if _, err := p.Run(); err != nil {
 		log.Printf("Error starting UI: %v", err)
 		CloseApp(app, 1)
 	}
+	CloseApp(app, 0)
 }

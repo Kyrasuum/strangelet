@@ -16,7 +16,84 @@ const ()
 var (
 	ColorScheme map[string]lipgloss.Style = make(map[string]lipgloss.Style)
 	ColorGroups map[highlight.Group]string
+
+	activetabBorder   lipgloss.Border
+	inactivetabBorder lipgloss.Border
+	outerHalfBorder   lipgloss.Border
+	innerHalfBorder   lipgloss.Border
+
+	paneBackground        lipgloss.TerminalColor
+	tabForeground         lipgloss.TerminalColor
+	tabBackground         lipgloss.TerminalColor
+	activetabForeground   lipgloss.TerminalColor
+	activetabBackground   lipgloss.TerminalColor
+	inactivetabForeground lipgloss.TerminalColor
+	inactivetabBackground lipgloss.TerminalColor
+
+	TabsStyle         lipgloss.Style
+	TabStyle          lipgloss.Style
+	InactiveTabStyle  lipgloss.Style
+	ActiveTabStyle    lipgloss.Style
+	PaneStyle         lipgloss.Style
+	InactivePaneStyle lipgloss.Style
+	ActivePaneStyle   lipgloss.Style
 )
+
+func UpdateStyling() {
+	activetabBorder = lipgloss.ThickBorder()
+	inactivetabBorder = lipgloss.RoundedBorder()
+	outerHalfBorder = lipgloss.Border{
+		Top:         "▀",
+		Bottom:      "▄",
+		Left:        "▌",
+		Right:       "▐",
+		TopLeft:     "▛",
+		TopRight:    "▜",
+		BottomLeft:  "▙",
+		BottomRight: "▟",
+	}
+	innerHalfBorder = lipgloss.Border{
+		Top:         "▄",
+		Bottom:      "▀",
+		Left:        "▐",
+		Right:       "▌",
+		TopLeft:     "▗",
+		TopRight:    "▖",
+		BottomLeft:  "▝",
+		BottomRight: "▘",
+	}
+
+	paneBackground = ColorScheme["background"].GetBackground()
+
+	tabForeground = ColorScheme["tabbar"].GetForeground()
+	tabBackground = ColorScheme["tabbar"].GetBackground()
+	activetabForeground = ColorScheme["active-tab"].GetForeground()
+	activetabBackground = ColorScheme["active-tab"].GetBackground()
+	inactivetabForeground = ColorScheme["inactive-tab"].GetForeground()
+	inactivetabBackground = ColorScheme["inactive-tab"].GetBackground()
+
+	TabsStyle = lipgloss.NewStyle().Background(tabBackground).Foreground(tabForeground).BorderBackground(tabBackground).BorderForeground(tabForeground)
+	TabStyle = TabsStyle.Copy()
+	ActiveTabStyle = TabStyle.Copy().Border(activetabBorder).
+		BorderTop(false).BorderBottom(false).BorderLeft(true).BorderRight(true).Bold(true).
+		Background(activetabBackground).Foreground(activetabForeground).BorderBackground(activetabBackground).BorderForeground(activetabForeground)
+	InactiveTabStyle = TabStyle.Copy().Border(inactivetabBorder).
+		BorderTop(false).BorderBottom(false).BorderLeft(false).BorderRight(false).
+		Background(inactivetabBackground).Foreground(inactivetabForeground).BorderBackground(inactivetabBackground).BorderForeground(inactivetabForeground)
+	PaneStyle = lipgloss.NewStyle().Background(paneBackground)
+	InactivePaneStyle = lipgloss.NewStyle()
+	ActivePaneStyle = InactivePaneStyle.Copy()
+
+	ColorScheme["log"] = ColorScheme["log"].Border(outerHalfBorder).
+		BorderTop(false).BorderBottom(false).BorderLeft(true).BorderRight(false).
+		BorderBackground(ColorScheme["log"].GetBackground()).BorderForeground(ColorScheme["log"].GetForeground())
+
+	ColorScheme["filebrowser"] = ColorScheme["filebrowser"].Border(outerHalfBorder).
+		BorderTop(false).BorderBottom(false).BorderLeft(false).BorderRight(true).
+		BorderBackground(ColorScheme["filebrowser"].GetBackground()).BorderForeground(ColorScheme["filebrowser"].GetForeground())
+	ColorScheme["filebrowser.cwd"] = ColorScheme["filebrowser.cwd"].Underline(true)
+	ColorScheme["filebrowser.cwd-inactive"] = ColorScheme["filebrowser.cwd-inactive"].Underline(true)
+}
 
 // ColorschemeExists checks if a given colorscheme exists
 func ColorschemeExists(colorschemeName string) bool {
@@ -87,6 +164,8 @@ func loadColorscheme(colorschemeName string) error {
 			}
 		}
 	}
+
+	UpdateStyling()
 
 	return nil
 }

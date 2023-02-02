@@ -1,6 +1,7 @@
 package events
 
 import (
+	clipboard "github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -35,8 +36,15 @@ type FocusFileBrowser string
 
 type ToggleLogWindow string
 type LogMessage string
+type ErrorMsg error
 
 type FocusCommand string
+
+type StatusMsg []string
+
+type CopyMsg string
+type PasteMsg string
+type PasteErrMsg struct{ error }
 
 func InitActions() error {
 	Actions = map[string]keyHandler{
@@ -64,7 +72,19 @@ func InitActions() error {
 		"ToggleLogWindow": func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return ToggleLogWindow("") } },
 
 		"FocusCommand": func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return FocusCommand("") } },
+
+		"NOOP":  func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return "" } },
+		"Paste": func(_ tea.Msg) tea.Cmd { return HandlePaste },
+		"Copy":  func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return CopyMsg("") } },
 	}
 
 	return nil
+}
+
+func HandlePaste() tea.Msg {
+	str, err := clipboard.ReadAll()
+	if err != nil {
+		return PasteErrMsg{err}
+	}
+	return PasteMsg(str)
 }

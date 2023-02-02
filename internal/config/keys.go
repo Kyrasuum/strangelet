@@ -10,15 +10,27 @@ import (
 
 	"strangelet/internal/events"
 
-	//tea "github.com/charmbracelet/bubbletea"
 	json5 "github.com/zyedidia/json5"
 )
 
 var (
 	Bindings map[string]map[string]string = make(map[string]map[string]string)
+	Scopes                                = map[int]string{
+		SplitView: "Split",
+		FilesView: "File Browser",
+		LogView:   "Log Window",
+		CmdView:   "Command Bar",
+	}
+	PasteBeginKey = byte('[')
+	PasteEndKey   = byte(']')
 )
 
-const ()
+const (
+	SplitView int = iota
+	FilesView
+	LogView
+	CmdView
+)
 
 func InitBindings() error {
 	events.InitActions()
@@ -171,8 +183,8 @@ func DefaultBindings(scope string) map[string]string {
 	case "Global":
 		return map[string]string{
 			"alt+ctrl+q": "Quit",
-			"alt+k":      "FocusFileBrowser",
-			"ctrl+k":     "ToggleFileBrowser",
+			"alt+ctrl+d": "FocusFileBrowser",
+			"alt+d":      "ToggleFileBrowser",
 			"ctrl+l":     "ToggleLogWindow",
 			"ctrl+e":     "FocusCommand",
 		}
@@ -183,6 +195,10 @@ func DefaultBindings(scope string) map[string]string {
 	case "Filebrowser":
 		return map[string]string{
 			"ctrl+q": "ToggleFileBrowser",
+			"up":     "CursorUp",
+			"down":   "CursorDown",
+			"left":   "CursorLeft",
+			"right":  "CursorRight",
 		}
 	case "Split":
 		return map[string]string{
@@ -201,6 +217,8 @@ func DefaultBindings(scope string) map[string]string {
 			"down":  "CursorDown",
 			"left":  "CursorLeft",
 			"right": "CursorRight",
+
+			"ctrl+c": "Copy",
 		}
 	case "Terminal":
 		return map[string]string{

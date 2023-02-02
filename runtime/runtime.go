@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-//go:embed colorschemes help syntax plugins
+//go:embed colorschemes help plugins syntax
 var runtime embed.FS
 
 func fixPath(name string) string {

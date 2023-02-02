@@ -1,8 +1,14 @@
 package view
 
 import (
+	"fmt"
+
 	config "strangelet/internal/config"
 	events "strangelet/internal/events"
+	cmd "strangelet/internal/view/cmd"
+	filebrowser "strangelet/internal/view/filebrowser"
+	logWindow "strangelet/internal/view/logWindow"
+	split "strangelet/internal/view/split"
 	pub "strangelet/pkg/app"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -16,56 +22,58 @@ type view struct {
 	width  int
 	height int
 
-	s  *split
-	fb *filebrowser
-	l  *logWindow
-	c  *cmd
+	s  *split.Split
+	fb *filebrowser.Filebrowser
+	l  *logWindow.LogWindow
+	c  *cmd.Cmd
 	sb *statusbar.Bubble
 }
 
-var (
-	highlightColor = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
-	scopes         = map[int]string{
-		splitView: "Split",
-		filesView: "File Browser",
-		logView:   "Log Window",
-		cmdView:   "Command Bar",
-	}
-)
-
-const (
-	splitView int = iota
-	filesView
-	logView
-	cmdView
-)
+var ()
 
 func NewView(app pub.App) view {
-	s := NewSplit(app)
-	fb := NewFileBrowser(app)
-	l := NewLog(app)
-	c := NewCmd(app)
+	s := split.NewSplit(app)
+	fb := filebrowser.NewFileBrowser(app)
+	l := logWindow.NewLog(app)
+	c := cmd.NewCmd(app)
+
+	sbstyle := config.ColorScheme["statusline"]
+	sbfg := fmt.Sprintf("%+v", sbstyle.GetForeground())
+	sbbg := fmt.Sprintf("%+v", sbstyle.GetBackground())
+
+	sbftstyle := config.ColorScheme["statusline.ft"]
+	sbftfg := fmt.Sprintf("%+v", sbftstyle.GetForeground())
+	sbftbg := fmt.Sprintf("%+v", sbftstyle.GetBackground())
+
+	sbgitstyle := config.ColorScheme["statusline.git"]
+	sbgitfg := fmt.Sprintf("%+v", sbgitstyle.GetForeground())
+	sbgitbg := fmt.Sprintf("%+v", sbgitstyle.GetBackground())
+
+	sbcursorstyle := config.ColorScheme["statusline.cursor"]
+	sbcursorfg := fmt.Sprintf("%+v", sbcursorstyle.GetForeground())
+	sbcursorbg := fmt.Sprintf("%+v", sbcursorstyle.GetBackground())
+
 	sb := statusbar.New(
 		statusbar.ColorConfig{
-			Foreground: lipgloss.AdaptiveColor{Dark: "#ffffff", Light: "#ffffff"},
-			Background: lipgloss.AdaptiveColor{Light: "#F25D94", Dark: "#F25D94"},
+			Foreground: lipgloss.AdaptiveColor{Light: sbfg, Dark: sbfg},
+			Background: lipgloss.AdaptiveColor{Light: sbbg, Dark: sbbg},
 		},
 		statusbar.ColorConfig{
-			Foreground: lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#ffffff"},
-			Background: lipgloss.AdaptiveColor{Light: "#3c3836", Dark: "#3c3836"},
+			Foreground: lipgloss.AdaptiveColor{Light: sbftfg, Dark: sbftfg},
+			Background: lipgloss.AdaptiveColor{Light: sbftbg, Dark: sbftbg},
 		},
 		statusbar.ColorConfig{
-			Foreground: lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#ffffff"},
-			Background: lipgloss.AdaptiveColor{Light: "#A550DF", Dark: "#A550DF"},
+			Foreground: lipgloss.AdaptiveColor{Light: sbgitfg, Dark: sbgitfg},
+			Background: lipgloss.AdaptiveColor{Light: sbgitbg, Dark: sbgitbg},
 		},
 		statusbar.ColorConfig{
-			Foreground: lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#ffffff"},
-			Background: lipgloss.AdaptiveColor{Light: "#6124DF", Dark: "#6124DF"},
+			Foreground: lipgloss.AdaptiveColor{Light: sbcursorfg, Dark: sbcursorfg},
+			Background: lipgloss.AdaptiveColor{Light: sbcursorbg, Dark: sbcursorbg},
 		},
 	)
 
 	v := view{
-		active: splitView,
+		active: config.SplitView,
 
 		width:  0,
 		height: 0,
@@ -86,57 +94,85 @@ func (v view) Init() tea.Cmd {
 
 func (v view) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
-		cmd  tea.Cmd
+		c    tea.Cmd
 		cmds []tea.Cmd
 	)
 
 	switch msg := msg.(type) {
 	// These keys should exit the program.
+	case events.StatusMsg:
+		msg = append(msg, []string{"", "", "", ""}...)
+		v.sb.SetContent(msg[0], msg[1], msg[2], msg[3])
 	case events.FocusCommand:
-		if v.active != cmdView {
-			v.active = cmdView
-			v.s.SetActive(false)
+		if v.active != config.CmdView {
+			e, c := v.s.SetActive(false)
+			*v.s = e.(split.Split)
+			cmds = append(cmds, c)
+
+			v.active = config.CmdView
+
+			e, c = v.c.SetActive(true)
+			*v.c = e.(cmd.Cmd)
+			cmds = append(cmds, c)
 		} else {
-			v.active = splitView
-			v.s.SetActive(true)
+			e, c := v.s.SetActive(true)
+			*v.s = e.(split.Split)
+			cmds = append(cmds, c)
+
+			v.active = config.SplitView
+
+			e, c = v.c.SetActive(false)
+			*v.c = e.(cmd.Cmd)
+			cmds = append(cmds, c)
 		}
 	case events.ToggleLogWindow:
 		*v.l = v.l.ToggleVisible()
 	case events.ToggleFileBrowser:
 		*v.fb = v.fb.ToggleVisible()
-		if v.fb.visible {
-			v.s.SetActive(false)
-			v.active = filesView
-		} else {
-			v.active = splitView
-			v.s.SetActive(true)
-		}
+		cmds = append(cmds, events.Actions["FocusFileBrowser"](msg))
 	case events.FocusFileBrowser:
-		if v.active != filesView {
-			v.active = filesView
-			v.s.SetActive(false)
+		if v.active != config.FilesView {
+			e, c := v.s.SetActive(false)
+			*v.s = e.(split.Split)
+			cmds = append(cmds, c)
+
+			v.active = config.FilesView
+
+			e, c = v.fb.SetActive(true)
+			*v.fb = e.(filebrowser.Filebrowser)
+			cmds = append(cmds, c)
 		} else {
-			v.active = splitView
-			v.s.SetActive(true)
+			e, c := v.s.SetActive(true)
+			*v.s = e.(split.Split)
+			cmds = append(cmds, c)
+
+			v.active = config.SplitView
+
+			e, c = v.fb.SetActive(false)
+			*v.fb = e.(filebrowser.Filebrowser)
+			cmds = append(cmds, c)
 		}
 	case events.CloseApp:
 		return v, tea.Quit
 	case tea.WindowSizeMsg:
 		v.sb.SetSize(msg.Width)
-		v.sb.SetContent("test.txt", "~/.config/nvim", "1/23", "SB")
 		v.width = msg.Width
 		v.height = msg.Height
 
 		c := v.c.ViewW(v.width)
 		sb := v.sb.View()
 		h := v.height - lipgloss.Height(c) - lipgloss.Height(sb)
-		v.fb.SetHeight(h)
-		v.l.SetHeight(h)
+		*v.fb = v.fb.SetHeight(h)
+		*v.l = v.l.SetHeight(h)
 	case tea.KeyMsg:
 		if action, ok := config.Bindings["Global"][msg.String()]; ok {
 			if handler, ok := events.Actions[action]; ok {
 				cmds = append(cmds, handler(msg))
 			}
+		}
+		str := msg.String()
+		if str[0] == config.PasteBeginKey && str[len(str)-1] == config.PasteEndKey {
+			cmds = append(cmds, events.Actions["Paste"](msg))
 		}
 	case tea.MouseMsg:
 		if !config.GlobalSettings["mouse"].(bool) {
@@ -149,19 +185,19 @@ func (v view) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch v.active {
-	case splitView:
-		*v.s, cmd = v.s.UpdateTyped(msg)
-		cmds = append(cmds, cmd)
-	case filesView:
-		*v.fb, cmd = v.fb.UpdateTyped(msg)
-		cmds = append(cmds, cmd)
-	case cmdView:
-		*v.c, cmd = v.c.UpdateTyped(msg)
-		cmds = append(cmds, cmd)
+	case config.SplitView:
+		*v.s, c = v.s.UpdateTyped(msg)
+		cmds = append(cmds, c)
+	case config.FilesView:
+		*v.fb, c = v.fb.UpdateTyped(msg)
+		cmds = append(cmds, c)
+	case config.CmdView:
+		*v.c, c = v.c.UpdateTyped(msg)
+		cmds = append(cmds, c)
 	}
 
-	*v.l, cmd = v.l.UpdateTyped(msg)
-	cmds = append(cmds, cmd)
+	*v.l, c = v.l.UpdateTyped(msg)
+	cmds = append(cmds, c)
 
 	empty := true
 	for _, cmd := range cmds {
@@ -173,7 +209,7 @@ func (v view) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
 			cmds = append(cmds, func() tea.Msg {
-				return events.LogMessage("Unknown Keybind for scope[Global, " + scopes[v.active] + "]: " + msg.String())
+				return events.LogMessage("Unknown Keybind for scope[Global, " + config.Scopes[v.active] + "]: " + msg.String())
 			})
 		}
 	}
@@ -191,10 +227,10 @@ func (v view) View() string {
 	fb := ""
 	l := ""
 
-	if v.fb.visible {
-		fb = v.fb.View()
+	if v.fb.Visible() {
+		*v.fb, fb = v.fb.View()
 	}
-	if v.l.visible {
+	if v.l.Visible() {
 		l = v.l.View()
 	}
 

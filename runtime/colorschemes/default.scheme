@@ -53,7 +53,7 @@
 "constant.number" "" "#AE81FF"
 "constant.comment" "" "#AE81FF"
 "constant.specialChar" "" "#BDE6AD"
-"constant-string" "" "#E6DB74"
+"constant.string" "" "#E6DB74"
 "constant.string.url" "" "#E6DB74"
 "constant.bool" "" "#AE81FF"
 "constant.bool.false" "" "#AE81FF"
@@ -67,7 +67,6 @@
 "gutter-warning" "" "#E6DB74"
 
 "color-column" "" "#323232"
-
 "cursor-line" "" "#323232"
 "line-number" "" "#AAAAAA,#323232"
 "current-line-number" "" "#AAAAAA"
@@ -79,3 +78,13 @@
 "inactive-tab" "" "#828282,#F8F8F2"
 
 "statusline" "" "#282828,#A8A8A2"
+"statusline.ft" "" "#282828,#A8A8A2"
+"statusline.git" "" "#282828,#A8A8A2"
+"statusline.cursor" "" "#282828,#A8A8A2"
+
+"filebrowser" "" "#F8F8F2,#282828"
+"filebrowser.cwd" "" "#F92671,#282828"
+"filebrowser.dir" "" "#A6E22E,#282828"
+"filebrowser.file" "" "#F8F8F2,#282828"
+"filebrowser.sel" "" "#282828,#F8F8F2"
+"log" "" "#F8F8F2,#282828"
