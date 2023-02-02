@@ -213,12 +213,59 @@ func DefaultBindings(scope string) map[string]string {
 			"ctrl+s": "SaveTab",
 			"ctrl+q": "CloseTab",
 
+			"ctrl+g": "Goto",
+			"alt+e":  "ToggleSelect",
+
 			"up":    "CursorUp",
 			"down":  "CursorDown",
 			"left":  "CursorLeft",
 			"right": "CursorRight",
 
+			"alt+up":    "MoveSelectionUp",
+			"alt+down":  "MoveSelectionDown",
+			"alt+left":  "StartOfLine",
+			"alt+right": "EndOfLine",
+
+			"ctrl+up":    "StartOfFile",
+			"ctrl+down":  "EndOfFile",
+			"ctrl+left":  "WordLeft",
+			"ctrl+right": "WordRight",
+
+			"shift+up":    "SelectUp",
+			"shift+down":  "SelectDown",
+			"shift+left":  "SelectLeft",
+			"shift+right": "SelectRight",
+
+			"ctrl+shift+up":    "NewCursorUp",
+			"ctrl+shift+down":  "NewCursorDown",
+			"ctrl+shift+left":  "SelectWordLeft",
+			"ctrl+shift+right": "SelectWordRight",
+
+			"alt+shift+up":    "CursorBlockUp",
+			"alt+shift+down":  "CursorBlockDown",
+			"alt+shift+left":  "SelectStartOfLine",
+			"alt+shift+right": "SelectEndOfLine",
+
 			"ctrl+c": "Copy",
+			"ctrl+x": "Cut",
+			"ctrl+v": "Paste",
+
+			"ctrl+a": "SelectAll",
+			"ctrl+d": "DuplicateLine",
+
+			"ctrl+f":     "FindRegex",
+			"alt+ctrl+f": "Find",
+			"alt+f":      "FindOpenRegex",
+			"alt+F":      "FindOpen",
+
+			"ctrl+z":     "Undo",
+			"alt+ctrl+z": "Redo",
+
+			"alt+,": "CloseBlock",
+			"alt+.": "OpenBlock",
+
+			"alt+<": "DeleteWordLeft",
+			"alt+>": "DeleteWordRight",
 		}
 	case "Terminal":
 		return map[string]string{

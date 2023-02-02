@@ -69,25 +69,29 @@ func (s Split) UpdateTyped(msg tea.Msg) (Split, tea.Cmd) {
 			cmds = append(cmds, events.Actions["Quit"](msg))
 		}
 	case events.PrevSplitMsg:
-		e, cmd := s.panes[s.active].SetActive(false)
-		s.panes[s.active] = e.(view.Elem)
-		cmds = append(cmds, cmd)
+		if len(s.panes) > 0 {
+			e, cmd := s.panes[s.active].SetActive(false)
+			s.panes[s.active] = e.(view.Elem)
+			cmds = append(cmds, cmd)
 
-		s.active = (s.active - 1 + len(s.panes)) % len(s.panes)
+			s.active = (s.active - 1 + len(s.panes)) % len(s.panes)
 
-		e, cmd = s.panes[s.active].SetActive(true)
-		s.panes[s.active] = e.(view.Elem)
-		cmds = append(cmds, cmd)
+			e, cmd = s.panes[s.active].SetActive(true)
+			s.panes[s.active] = e.(view.Elem)
+			cmds = append(cmds, cmd)
+		}
 	case events.NextSplitMsg:
-		e, cmd := s.panes[s.active].SetActive(false)
-		s.panes[s.active] = e.(view.Elem)
-		cmds = append(cmds, cmd)
+		if len(s.panes) > 0 {
+			e, cmd := s.panes[s.active].SetActive(false)
+			s.panes[s.active] = e.(view.Elem)
+			cmds = append(cmds, cmd)
 
-		s.active = (s.active + 1) % len(s.panes)
+			s.active = (s.active + 1) % len(s.panes)
 
-		e, cmd = s.panes[s.active].SetActive(true)
-		s.panes[s.active] = e.(view.Elem)
-		cmds = append(cmds, cmd)
+			e, cmd = s.panes[s.active].SetActive(true)
+			s.panes[s.active] = e.(view.Elem)
+			cmds = append(cmds, cmd)
+		}
 	case tea.KeyMsg:
 		if action, ok := config.Bindings["Split"][msg.String()]; ok {
 			if handler, ok := events.Actions[action]; ok {

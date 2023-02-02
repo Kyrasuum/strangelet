@@ -56,25 +56,29 @@ func (p Pane) UpdateTyped(msg tea.Msg) (Pane, tea.Cmd) {
 			cmds = append(cmds, events.Actions["CloseSplit"](msg))
 		}
 	case events.PrevTabMsg:
-		e, cmd := p.tabContent[p.active].SetActive(false)
-		p.tabContent[p.active] = e.(view.Elem)
-		cmds = append(cmds, cmd)
+		if len(p.tabs) > 0 {
+			e, cmd := p.tabContent[p.active].SetActive(false)
+			p.tabContent[p.active] = e.(view.Elem)
+			cmds = append(cmds, cmd)
 
-		p.active = (p.active - 1 + len(p.tabs)) % len(p.tabs)
+			p.active = (p.active - 1 + len(p.tabs)) % len(p.tabs)
 
-		e, cmd = p.tabContent[p.active].SetActive(true)
-		p.tabContent[p.active] = e.(view.Elem)
-		cmds = append(cmds, cmd)
+			e, cmd = p.tabContent[p.active].SetActive(true)
+			p.tabContent[p.active] = e.(view.Elem)
+			cmds = append(cmds, cmd)
+		}
 	case events.NextTabMsg:
-		e, cmd := p.tabContent[p.active].SetActive(false)
-		p.tabContent[p.active] = e.(view.Elem)
-		cmds = append(cmds, cmd)
+		if len(p.tabs) > 0 {
+			e, cmd := p.tabContent[p.active].SetActive(false)
+			p.tabContent[p.active] = e.(view.Elem)
+			cmds = append(cmds, cmd)
 
-		p.active = (p.active + 1) % len(p.tabs)
+			p.active = (p.active + 1) % len(p.tabs)
 
-		e, cmd = p.tabContent[p.active].SetActive(true)
-		p.tabContent[p.active] = e.(view.Elem)
-		cmds = append(cmds, cmd)
+			e, cmd = p.tabContent[p.active].SetActive(true)
+			p.tabContent[p.active] = e.(view.Elem)
+			cmds = append(cmds, cmd)
+		}
 	case events.NewTabMsg:
 		c := code.NewCode()
 		cmd := c.OpenFile("internal/view/view.go")
