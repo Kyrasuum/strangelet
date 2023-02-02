@@ -18,6 +18,8 @@ import (
 
 type view struct {
 	active int
+	dirty  bool
+	frame  string
 
 	width  int
 	height int
@@ -74,25 +76,27 @@ func NewView(app pub.App) view {
 
 	v := view{
 		active: config.SplitView,
+		dirty:  true,
+		frame:  "",
 
 		width:  0,
 		height: 0,
 
-		s:  &s,
-		fb: &fb,
-		l:  &l,
-		c:  &c,
+		s:  s,
+		fb: fb,
+		l:  l,
+		c:  c,
 		sb: &sb,
 	}
 
 	return v
 }
 
-func (v view) Init() tea.Cmd {
-	return tea.Batch(tea.EnterAltScreen)
+func (v *view) Init() tea.Cmd {
+	return nil
 }
 
-func (v view) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (v *view) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
 		c    tea.Cmd
 		cmds []tea.Cmd
@@ -103,54 +107,61 @@ func (v view) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case events.StatusMsg:
 		msg = append(msg, []string{"", "", "", ""}...)
 		v.sb.SetContent(msg[0], msg[1], msg[2], msg[3])
+		v.Redraw()
 	case events.FocusCommand:
 		if v.active != config.CmdView {
-			e, c := v.s.SetActive(false)
-			*v.s = e.(split.Split)
+			c := v.s.SetActive(false)
 			cmds = append(cmds, c)
 
 			v.active = config.CmdView
 
-			e, c = v.c.SetActive(true)
-			*v.c = e.(cmd.Cmd)
+			c = v.c.SetActive(true)
 			cmds = append(cmds, c)
 		} else {
-			e, c := v.s.SetActive(true)
-			*v.s = e.(split.Split)
+			c := v.s.SetActive(true)
 			cmds = append(cmds, c)
 
 			v.active = config.SplitView
 
-			e, c = v.c.SetActive(false)
-			*v.c = e.(cmd.Cmd)
+			c = v.c.SetActive(false)
 			cmds = append(cmds, c)
 		}
+		v.Redraw()
 	case events.ToggleLogWindow:
-		*v.l = v.l.ToggleVisible()
+		v.l.ToggleVisible()
+		v.Redraw()
 	case events.ToggleFileBrowser:
-		*v.fb = v.fb.ToggleVisible()
-		cmds = append(cmds, events.Actions["FocusFileBrowser"](msg))
-	case events.FocusFileBrowser:
-		if v.active != config.FilesView {
-			e, c := v.s.SetActive(false)
-			*v.s = e.(split.Split)
+		if v.fb.Visible() {
+			c := v.s.SetActive(true)
 			cmds = append(cmds, c)
-
-			v.active = config.FilesView
-
-			e, c = v.fb.SetActive(true)
-			*v.fb = e.(filebrowser.Filebrowser)
-			cmds = append(cmds, c)
-		} else {
-			e, c := v.s.SetActive(true)
-			*v.s = e.(split.Split)
-			cmds = append(cmds, c)
-
 			v.active = config.SplitView
-
-			e, c = v.fb.SetActive(false)
-			*v.fb = e.(filebrowser.Filebrowser)
+		} else {
+			c := v.s.SetActive(false)
 			cmds = append(cmds, c)
+			v.active = config.FilesView
+		}
+		v.fb.ToggleVisible()
+		v.Redraw()
+	case events.FocusFileBrowser:
+		if v.fb.Visible() {
+			if v.active != config.FilesView {
+				c := v.s.SetActive(false)
+				cmds = append(cmds, c)
+
+				v.active = config.FilesView
+
+				c = v.fb.SetActive(true)
+				cmds = append(cmds, c)
+			} else {
+				c := v.s.SetActive(true)
+				cmds = append(cmds, c)
+
+				v.active = config.SplitView
+
+				c = v.fb.SetActive(false)
+				cmds = append(cmds, c)
+			}
+			v.Redraw()
 		}
 	case events.CloseApp:
 		return v, tea.Quit
@@ -162,8 +173,9 @@ func (v view) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		c := v.c.ViewW(v.width)
 		sb := v.sb.View()
 		h := v.height - lipgloss.Height(c) - lipgloss.Height(sb)
-		*v.fb = v.fb.SetHeight(h)
-		*v.l = v.l.SetHeight(h)
+		v.fb.SetHeight(h)
+		v.l.SetHeight(h)
+		v.dirty = true
 	case tea.KeyMsg:
 		if action, ok := config.Bindings["Global"][msg.String()]; ok {
 			if handler, ok := events.Actions[action]; ok {
@@ -186,18 +198,31 @@ func (v view) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch v.active {
 	case config.SplitView:
-		*v.s, c = v.s.UpdateTyped(msg)
-		cmds = append(cmds, c)
+		_, c = v.s.Update(msg)
+		if c != nil {
+			cmds = append(cmds, c)
+		}
+		v.Redraw()
 	case config.FilesView:
-		*v.fb, c = v.fb.UpdateTyped(msg)
-		cmds = append(cmds, c)
+		_, c = v.fb.Update(msg)
+		if c != nil {
+			cmds = append(cmds, c)
+		}
+		v.Redraw()
 	case config.CmdView:
-		*v.c, c = v.c.UpdateTyped(msg)
-		cmds = append(cmds, c)
+		_, c = v.c.Update(msg)
+		if c != nil {
+			cmds = append(cmds, c)
+		}
+		v.Redraw()
 	}
 
-	*v.l, c = v.l.UpdateTyped(msg)
-	cmds = append(cmds, c)
+	_, c = v.l.Update(msg)
+	if c != nil {
+		v.dirty = true
+		cmds = append(cmds, c)
+		v.Redraw()
+	}
 
 	empty := true
 	for _, cmd := range cmds {
@@ -219,8 +244,7 @@ func (v view) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return v, tea.Batch(cmds...)
 }
 
-func (v view) View() string {
-	//initial render
+func (v *view) Redraw() {
 	c := v.c.ViewW(v.width)
 	sb := v.sb.View()
 
@@ -228,7 +252,7 @@ func (v view) View() string {
 	l := ""
 
 	if v.fb.Visible() {
-		*v.fb, fb = v.fb.View()
+		fb = v.fb.View()
 	}
 	if v.l.Visible() {
 		l = v.l.View()
@@ -238,7 +262,24 @@ func (v view) View() string {
 		v.width-lipgloss.Width(fb)-lipgloss.Width(l),
 		v.height-lipgloss.Height(c)-lipgloss.Height(sb))
 
-	display := lipgloss.JoinVertical(lipgloss.Left, lipgloss.JoinHorizontal(lipgloss.Top, fb, s, l), sb, c)
+	v.frame = lipgloss.JoinVertical(lipgloss.Left, lipgloss.JoinHorizontal(lipgloss.Top, fb, s, l), sb, c)
+}
 
-	return display
+func (v *view) View() string {
+	if v.dirty {
+		//initial render
+		v.s.SetDirty()
+		v.c.SetDirty()
+		v.fb.SetDirty()
+		v.l.SetDirty()
+
+		v.Redraw()
+		v.dirty = false
+	}
+
+	return v.frame
+}
+
+func (v *view) SetDirty() {
+	v.dirty = true
 }

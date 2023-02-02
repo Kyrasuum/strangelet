@@ -1,6 +1,8 @@
 package events
 
 import (
+	"fmt"
+
 	clipboard "github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -33,6 +35,13 @@ type CursorRightMsg string
 
 type ToggleFileBrowser string
 type FocusFileBrowser string
+type FbEnterEntryMsg string
+type FbOpenFolderMsg string
+type FbCloseFolderMsg string
+type FbExpandFolderMsg string
+type FbCollapseFolderMsg string
+type FbJumpDownFolderMsg string
+type FbJumpUpFolderMsg string
 
 type ToggleLogWindow string
 type LogMessage string
@@ -57,7 +66,7 @@ func InitActions() error {
 
 		"SaveTab":  func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return SaveTabMsg("") } },
 		"CloseTab": func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return CloseTabMsg("") } },
-		"NewTab":   func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return NewTabMsg("") } },
+		"NewTab":   func(m tea.Msg) tea.Cmd { return func() tea.Msg { return NewTabMsg(fmt.Sprintf("%+v", m)) } },
 		"NextTab":  func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return NextTabMsg("") } },
 		"PrevTab":  func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return PrevTabMsg("") } },
 
@@ -68,6 +77,13 @@ func InitActions() error {
 
 		"ToggleFileBrowser": func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return ToggleFileBrowser("") } },
 		"FocusFileBrowser":  func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return FocusFileBrowser("") } },
+		"FbEnterEntry":      func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return FbEnterEntryMsg("") } },
+		"FbOpenFolder":      func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return FbOpenFolderMsg("") } },
+		"FbCloseFolder":     func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return FbCloseFolderMsg("") } },
+		"FbExpandFolder":    func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return FbExpandFolderMsg("") } },
+		"FbCollapseFolder":  func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return FbCollapseFolderMsg("") } },
+		"FbJumpDownFolder":  func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return FbJumpDownFolderMsg("") } },
+		"FbJumpUpFolder":    func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return FbJumpUpFolderMsg("") } },
 
 		"ToggleLogWindow": func(_ tea.Msg) tea.Cmd { return func() tea.Msg { return ToggleLogWindow("") } },
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	// "path/filepath"
+	"path/filepath"
 
 	config "strangelet/internal/config"
 	events "strangelet/internal/events"
@@ -15,14 +15,25 @@ import (
 	lipgloss "github.com/charmbracelet/lipgloss"
 )
 
+type CurrEntry struct {
+	path  string
+	entry os.DirEntry
+	pari  int
+}
+
 type Filebrowser struct {
 	visible bool
 	active  bool
+	dirty   bool
+	frame   string
 
 	root string
 	sel  int
 	scr  int
 	max  int
+
+	open map[string]bool
+	curr *CurrEntry
 
 	height int
 }
@@ -31,7 +42,7 @@ var ()
 
 const ()
 
-func NewFileBrowser(app pub.App) Filebrowser {
+func NewFileBrowser(app pub.App) *Filebrowser {
 	path, err := os.Getwd()
 	if err != nil {
 		log.Println(err)
@@ -40,21 +51,25 @@ func NewFileBrowser(app pub.App) Filebrowser {
 	fb := Filebrowser{
 		visible: false,
 		active:  false,
+		dirty:   true,
+		frame:   "",
 		root:    path,
 		sel:     0,
 		scr:     0,
 		max:     0,
+		open:    map[string]bool{},
+		curr:    nil,
+		height:  0,
 	}
 
-	return fb
+	return &fb
 }
 
-func (fb Filebrowser) Init() tea.Cmd {
+func (fb *Filebrowser) Init() tea.Cmd {
 	return nil
 }
 
-func (fb Filebrowser) UpdateI(msg tea.Msg) (interface{}, tea.Cmd) { return fb.UpdateTyped(msg) }
-func (fb Filebrowser) UpdateTyped(msg tea.Msg) (Filebrowser, tea.Cmd) {
+func (fb *Filebrowser) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -62,10 +77,33 @@ func (fb Filebrowser) UpdateTyped(msg tea.Msg) (Filebrowser, tea.Cmd) {
 		if fb.sel < fb.max {
 			fb.sel++
 		}
+		cmds = append(cmds, events.Actions["NOOP"](""))
+		fb.Redraw()
 	case events.CursorUpMsg:
 		if fb.sel > 0 {
 			fb.sel--
 		}
+		cmds = append(cmds, events.Actions["NOOP"](""))
+		fb.Redraw()
+	case events.FbOpenFolderMsg:
+		if fb.curr.entry.IsDir() {
+			fb.open[fb.curr.path] = true
+		}
+		fb.Redraw()
+	case events.FbCloseFolderMsg:
+		if _, ok := fb.open[fb.curr.path]; ok {
+			delete(fb.open, fb.curr.path)
+		} else {
+			fb.sel = fb.curr.pari
+		}
+		fb.Redraw()
+	case events.FbEnterEntryMsg:
+		if fb.curr.entry.IsDir() {
+			fb.root = fb.curr.path
+		} else {
+			cmds = append(cmds, events.Actions["NewTab"](fb.curr.path), events.Actions["FocusFileBrowser"](""))
+		}
+		fb.Redraw()
 	case tea.KeyMsg:
 		if action, ok := config.Bindings["Filebrowser"][msg.String()]; ok {
 			if handler, ok := events.Actions[action]; ok {
@@ -81,7 +119,7 @@ func (fb Filebrowser) UpdateTyped(msg tea.Msg) (Filebrowser, tea.Cmd) {
 	return fb, tea.Batch(cmds...)
 }
 
-func (fb Filebrowser) renderHeader() string {
+func (fb *Filebrowser) renderHeader() string {
 	width := int(config.GlobalSettings["fbwidth"].(float64))
 	header := ""
 	var style lipgloss.Style
@@ -101,10 +139,10 @@ func (fb Filebrowser) renderHeader() string {
 	return header
 }
 
-func (fb Filebrowser) renderFiles(content string, indent int, ch int) (Filebrowser, string) {
+func (fb *Filebrowser) renderFiles(content string, path string, indent int, ch int) string {
 	width := int(config.GlobalSettings["fbwidth"].(float64))
 
-	files, err := os.ReadDir(fb.root)
+	files, err := os.ReadDir(path)
 	if err != nil {
 		log.Println(err.Error())
 		content = err.Error()
@@ -121,11 +159,22 @@ func (fb Filebrowser) renderFiles(content string, indent int, ch int) (Filebrows
 				if file.IsDir() {
 					style = config.ColorScheme["filebrowser.dir"]
 					prefix = prefix[:len(prefix)-2] + "+ "
+
+					abs, err := filepath.Abs(filepath.Join(path, file.Name()))
+					if err == nil {
+						if _, ok := fb.open[abs]; ok {
+							prefix = prefix[:len(prefix)-2] + "- "
+						}
+					}
 				} else {
 					style = config.ColorScheme["filebrowser.file"]
 				}
 				if fb.sel == ch+fb.scr {
 					style = config.ColorScheme["filebrowser.sel"]
+					abs, err := filepath.Abs(filepath.Join(path, file.Name()))
+					if err == nil {
+						fb.curr = &CurrEntry{entry: file, path: abs, pari: 0}
+					}
 				}
 			} else {
 				if file.IsDir() {
@@ -144,13 +193,25 @@ func (fb Filebrowser) renderFiles(content string, indent int, ch int) (Filebrows
 			content = lipgloss.JoinVertical(lipgloss.Left, content,
 				style.Width(width).Render(line))
 			ch++
+
+			abs, err := filepath.Abs(filepath.Join(path, file.Name()))
+			if err == nil {
+				if _, ok := fb.open[abs]; ok {
+					content = fb.renderFiles(content, filepath.Join(path, file.Name()), indent+1, ch)
+					sub := lipgloss.Height(content)
+					if ch <= fb.sel-fb.scr && sub >= fb.sel-fb.scr && fb.curr.pari == 0 {
+						fb.curr.pari = ch + fb.scr - 1
+					}
+					ch = sub
+				}
+			}
 		}
 	}
 
-	return fb, content
+	return content
 }
 
-func (fb Filebrowser) View() (Filebrowser, string) {
+func (fb *Filebrowser) Redraw() {
 	width := int(config.GlobalSettings["fbwidth"].(float64))
 	fb.max = 0
 
@@ -158,30 +219,45 @@ func (fb Filebrowser) View() (Filebrowser, string) {
 	header := fb.renderHeader()
 
 	//get file content
-	fb, content := fb.renderFiles(header, 1, 1)
+	content := fb.renderFiles(header, fb.root, 1, 1)
 
 	//render filebrowser
-	return fb, config.ColorScheme["filebrowser"].
+	fb.frame = config.ColorScheme["filebrowser"].
 		Height(fb.height).
 		Width(width).
 		Render(content)
 }
 
-func (fb Filebrowser) SetHeight(h int) Filebrowser {
+func (fb *Filebrowser) View() string {
+	if fb.dirty {
+		fb.Redraw()
+		fb.dirty = false
+	}
+
+	return fb.frame
+}
+
+func (fb *Filebrowser) SetHeight(h int) {
 	fb.height = h
-	return fb
+	fb.dirty = true
 }
 
-func (fb Filebrowser) ToggleVisible() Filebrowser {
+func (fb *Filebrowser) ToggleVisible() {
 	fb.visible = !fb.visible
-	return fb
+	fb.active = fb.visible
+	fb.dirty = true
 }
 
-func (fb Filebrowser) SetActive(b bool) (interface{}, tea.Cmd) {
+func (fb *Filebrowser) SetActive(b bool) tea.Cmd {
 	fb.active = b
-	return fb, events.Actions["NOOP"]("")
+	fb.dirty = true
+	return events.Actions["NOOP"]("")
 }
 
-func (fb Filebrowser) Visible() bool {
+func (fb *Filebrowser) Visible() bool {
 	return fb.visible
+}
+
+func (fb *Filebrowser) SetDirty() {
+	fb.dirty = true
 }

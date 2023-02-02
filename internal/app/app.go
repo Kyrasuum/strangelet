@@ -314,7 +314,7 @@ func StartApp(app pub.App) {
 	go HandleEvents(app)
 
 	//start UI
-	p := tea.NewProgram(v, tea.WithAltScreen(), tea.WithMouseAllMotion(), tea.WithoutSignalHandler())
+	p := tea.NewProgram(&v, tea.WithAltScreen(), tea.WithMouseAllMotion(), tea.WithoutSignalHandler())
 	if _, err := p.Run(); err != nil {
 		log.Printf("Error starting UI: %v", err)
 		CloseApp(app, 1)

@@ -15,7 +15,10 @@ import (
 )
 
 type Split struct {
-	active    int
+	active int
+	dirty  bool
+	frame  string
+
 	direction int
 	panes     []view.Elem
 
@@ -31,25 +34,25 @@ const (
 	vertical
 )
 
-func NewSplit(app pub.App) Split {
+func NewSplit(app pub.App) *Split {
 	s := Split{
-		direction: vertical,
 		active:    0,
+		dirty:     true,
+		frame:     "",
+		direction: vertical,
 		panes:     []view.Elem{},
 	}
 
 	s.panes = append(s.panes, pane.NewPane())
 
-	return s
+	return &s
 }
 
-func (s Split) Init() tea.Cmd {
+func (s *Split) Init() tea.Cmd {
 	return nil
 }
 
-func (s Split) Update(msg tea.Msg) (tea.Model, tea.Cmd)    { return s.UpdateTyped(msg) }
-func (s Split) UpdateI(msg tea.Msg) (interface{}, tea.Cmd) { return s.UpdateTyped(msg) }
-func (s Split) UpdateTyped(msg tea.Msg) (Split, tea.Cmd) {
+func (s *Split) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
 		cmd  tea.Cmd
 		cmds []tea.Cmd
@@ -57,40 +60,40 @@ func (s Split) UpdateTyped(msg tea.Msg) (Split, tea.Cmd) {
 	switch msg := msg.(type) {
 	case events.NewSplitMsg:
 		s.panes = append(s.panes, pane.NewPane())
+		s.Redraw(lipgloss.Size(s.frame))
+		cmds = append(cmds, events.Actions["NOOP"](msg))
 	case events.CloseSplitMsg:
 		if len(s.panes) > 1 {
 			s.panes = append(s.panes[:s.active], s.panes[s.active+1:]...)
 			s.active = (util.Max(0, s.active-1)) % len(s.panes)
 
-			e, cmd := s.panes[s.active].SetActive(true)
-			s.panes[s.active] = e.(view.Elem)
+			cmd := s.panes[s.active].SetActive(true)
 			cmds = append(cmds, cmd)
 		} else {
 			cmds = append(cmds, events.Actions["Quit"](msg))
 		}
+		s.Redraw(lipgloss.Size(s.frame))
 	case events.PrevSplitMsg:
 		if len(s.panes) > 0 {
-			e, cmd := s.panes[s.active].SetActive(false)
-			s.panes[s.active] = e.(view.Elem)
+			cmd := s.panes[s.active].SetActive(false)
 			cmds = append(cmds, cmd)
 
 			s.active = (s.active - 1 + len(s.panes)) % len(s.panes)
 
-			e, cmd = s.panes[s.active].SetActive(true)
-			s.panes[s.active] = e.(view.Elem)
+			cmd = s.panes[s.active].SetActive(true)
 			cmds = append(cmds, cmd)
+			s.Redraw(lipgloss.Size(s.frame))
 		}
 	case events.NextSplitMsg:
 		if len(s.panes) > 0 {
-			e, cmd := s.panes[s.active].SetActive(false)
-			s.panes[s.active] = e.(view.Elem)
+			cmd := s.panes[s.active].SetActive(false)
 			cmds = append(cmds, cmd)
 
 			s.active = (s.active + 1) % len(s.panes)
 
-			e, cmd = s.panes[s.active].SetActive(true)
-			s.panes[s.active] = e.(view.Elem)
+			cmd = s.panes[s.active].SetActive(true)
 			cmds = append(cmds, cmd)
+			s.Redraw(lipgloss.Size(s.frame))
 		}
 	case tea.KeyMsg:
 		if action, ok := config.Bindings["Split"][msg.String()]; ok {
@@ -98,24 +101,19 @@ func (s Split) UpdateTyped(msg tea.Msg) (Split, tea.Cmd) {
 				cmds = append(cmds, handler(msg))
 			}
 		}
-	case tea.MouseMsg:
-		// tea.MouseEvent(msg)
-		switch msg.Type {
-		case tea.MouseWheelUp:
-		case tea.MouseWheelDown:
-		}
 	}
-	e, cmd := s.panes[s.active].Update(msg)
-	s.panes[s.active] = e.(view.Elem)
-	cmds = append(cmds, cmd)
+	_, cmd = s.panes[s.active].Update(msg)
+	if cmd != nil {
+		s.Redraw(lipgloss.Size(s.frame))
+		cmds = append(cmds, cmd)
+	}
 
 	// Return the updated model to the Bubble Tea runtime for processing.
 	// Note that we're not returning a command.
 	return s, tea.Batch(cmds...)
 }
 
-func (s Split) View() string { return s.ViewWH(0, 0) }
-func (s Split) ViewWH(w, h int) string {
+func (s *Split) Redraw(w, h int) {
 	pd := []string{}
 	for i := 0; i < len(s.panes); i++ {
 		switch s.direction {
@@ -138,15 +136,30 @@ func (s Split) ViewWH(w, h int) string {
 		display += lipgloss.JoinVertical(lipgloss.Left, pd...)
 	}
 
-	return splitStyle.Width(w).Height(h).Render(display)
+	s.frame = splitStyle.Width(w).Height(h).Render(display)
 }
 
-func (s Split) SetActive(b bool) (interface{}, tea.Cmd) {
-	var cmd tea.Cmd = nil
-	if len(s.panes) > 0 {
-		var e interface{}
-		e, cmd = s.panes[s.active].SetActive(b)
-		s.panes[s.active] = e.(view.Elem)
+func (s *Split) View() string { return s.ViewWH(0, 0) }
+func (s *Split) ViewWH(w, h int) string {
+	if s.dirty || w != lipgloss.Width(s.frame) || h != lipgloss.Height(s.frame) {
+		for i := 0; i < len(s.panes); i++ {
+			s.panes[i].SetDirty()
+		}
+		s.Redraw(w, h)
+		s.dirty = false
 	}
-	return s, cmd
+	return s.frame
+}
+
+func (s *Split) SetActive(b bool) tea.Cmd {
+	var cmd tea.Cmd = events.Actions["NOOP"]("")
+	if len(s.panes) > 0 {
+		cmd = s.panes[s.active].SetActive(b)
+		s.dirty = true
+	}
+	return cmd
+}
+
+func (s *Split) SetDirty() {
+	s.dirty = true
 }

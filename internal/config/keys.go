@@ -194,11 +194,16 @@ func DefaultBindings(scope string) map[string]string {
 		}
 	case "Filebrowser":
 		return map[string]string{
-			"ctrl+q": "ToggleFileBrowser",
-			"up":     "CursorUp",
-			"down":   "CursorDown",
-			"left":   "CursorLeft",
-			"right":  "CursorRight",
+			"ctrl+q":     "ToggleFileBrowser",
+			"up":         "CursorUp",
+			"down":       "CursorDown",
+			"left":       "FbCloseFolder",
+			"right":      "FbOpenFolder",
+			"ctrl+left":  "FbCollapseFolder",
+			"ctrl+right": "FbExpandFolder",
+			"ctrl+down":  "FbJumpDownFolder",
+			"ctrl+up":    "FbJumpUpFolder",
+			"enter":      "FbEnterEntry",
 		}
 	case "Split":
 		return map[string]string{

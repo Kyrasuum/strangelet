@@ -11,6 +11,8 @@ import (
 
 type Cmd struct {
 	active bool
+	dirty  bool
+	frame  string
 }
 
 var (
@@ -19,19 +21,20 @@ var (
 
 const ()
 
-func NewCmd(app pub.App) Cmd {
-	return Cmd{
+func NewCmd(app pub.App) *Cmd {
+	c := Cmd{
 		active: false,
+		dirty:  true,
+		frame:  "",
 	}
+	return &c
 }
 
-func (c Cmd) Init() tea.Cmd {
+func (c *Cmd) Init() tea.Cmd {
 	return nil
 }
 
-func (c Cmd) Update(msg tea.Msg) (tea.Model, tea.Cmd)    { return c.UpdateTyped(msg) }
-func (c Cmd) UpdateI(msg tea.Msg) (interface{}, tea.Cmd) { return c.UpdateTyped(msg) }
-func (c Cmd) UpdateTyped(msg tea.Msg) (Cmd, tea.Cmd) {
+func (c *Cmd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -50,13 +53,26 @@ func (c Cmd) UpdateTyped(msg tea.Msg) (Cmd, tea.Cmd) {
 	return c, tea.Batch(cmds...)
 }
 
-func (c Cmd) View() string { return c.ViewW(0) }
-func (c Cmd) ViewW(w int) string {
-	return cmdstyle.Width(w).Render("Cmd")
+func (c *Cmd) Redraw(w int) {
+	c.frame = cmdstyle.Width(w).Render("Cmd")
 }
-func (c Cmd) ViewWH(w int, h int) string { return c.ViewW(w) }
 
-func (c Cmd) SetActive(b bool) (interface{}, tea.Cmd) {
+func (c *Cmd) View() string { return c.ViewW(lipgloss.Width(c.frame)) }
+func (c *Cmd) ViewW(w int) string {
+	if c.dirty || w != lipgloss.Width(c.frame) {
+		c.Redraw(w)
+		c.dirty = false
+	}
+	return c.frame
+}
+func (c *Cmd) ViewWH(w int, h int) string { return c.ViewW(w) }
+
+func (c *Cmd) SetActive(b bool) tea.Cmd {
 	c.active = b
-	return c, events.Actions["NOOP"]("")
+	c.dirty = true
+	return events.Actions["NOOP"]("")
+}
+
+func (c *Cmd) SetDirty() {
+	c.dirty = true
 }

@@ -5,12 +5,16 @@ import (
 	"strings"
 
 	config "strangelet/internal/config"
+	events "strangelet/internal/events"
 	util "strangelet/internal/util"
 
+	dirfs "github.com/knipferrc/teacup/dirfs"
 	highlight "github.com/zyedidia/highlight"
 )
 
-var ()
+var (
+	OpenBuffers map[string]*Buffer = map[string]*Buffer{}
+)
 
 const ()
 
@@ -24,7 +28,9 @@ type Line struct {
 type Content map[int]*Line
 
 func NewContent() *Content {
-	c := Content{}
+	c := Content(
+		map[int]*Line{},
+	)
 	return &c
 }
 
@@ -45,45 +51,70 @@ func (c Content) Line(n int) string {
 }
 
 type Buffer struct {
+	Name  string
 	Lines *Content
 
 	Syntax *highlight.Highlighter
 	Def    *highlight.Def
 }
 
-func NewBuffer() Buffer {
-	b := Buffer{
-		Lines: NewContent(),
+func newBuffer(fileName string) *Buffer {
+	if _, ok := OpenBuffers[fileName]; !ok {
+		b := Buffer{
+			Name:  fileName,
+			Lines: NewContent(),
+		}
+		OpenBuffers[fileName] = &b
 	}
-	return b
+	return OpenBuffers[fileName]
 }
 
-func (b Buffer) LinesNum() int {
-	return b.Lines.LinesNum()
+func OpenFile(fileName string) (*Buffer, error) {
+	data, err := dirfs.ReadFileContent(fileName)
+	if err != nil {
+		return nil, events.ErrorMsg(err)
+	}
+
+	b := newBuffer(fileName)
+	err = b.Highlight(data)
+	if err != nil {
+		return nil, events.ErrorMsg(err)
+	}
+	return b, nil
 }
 
-func (b Buffer) Line(n int) string {
-	return b.Lines.Line(n)
+func (b *Buffer) LinesNum() int {
+	if b.Lines != nil {
+		return b.Lines.LinesNum()
+	}
+	return 0
 }
 
-func (b Buffer) State(lineN int) highlight.State {
+func (b *Buffer) Line(n int) string {
+	if b.Lines != nil {
+		return b.Lines.Line(n)
+	}
+	return ""
+}
+
+func (b *Buffer) State(lineN int) highlight.State {
 	return b.Lines.State(lineN)
 }
 
-func (b Buffer) SetState(lineN int, s highlight.State) {
+func (b *Buffer) SetState(lineN int, s highlight.State) {
 	b.Lines.SetState(lineN, s)
 }
 
-func (b Buffer) SetMatch(lineN int, m highlight.LineMatch) {
+func (b *Buffer) SetMatch(lineN int, m highlight.LineMatch) {
 	b.Lines.SetMatch(lineN, m)
 }
 
-func (b Buffer) Highlight(content string, fileName string) (Buffer, error) {
+func (b *Buffer) Highlight(content string) error {
 	//split content into lines
 	text := strings.Split(content, "\n")
 
 	// Load the syntax definition
-	b.Def = config.DetectType(fileName, []byte(text[0]))
+	b.Def = config.DetectType(b.Name, []byte(text[0]))
 
 	// Make a new highlighter from the definition
 	b.Syntax = highlight.NewHighlighter(b.Def)
@@ -100,10 +131,10 @@ func (b Buffer) Highlight(content string, fileName string) (Buffer, error) {
 	b.Syntax.HighlightStates(b.Lines)
 	b.Syntax.HighlightMatches(b.Lines, 0, b.LinesNum())
 
-	return b, nil
+	return nil
 }
 
-func (b Buffer) renderChar(char []byte, group highlight.Group, active bool) string {
+func (b *Buffer) renderChar(char []byte, group highlight.Group, active bool) string {
 	if grp, ok := config.ColorGroups[group]; ok {
 		if active {
 			//use active style
@@ -149,38 +180,40 @@ func (b Buffer) renderChar(char []byte, group highlight.Group, active bool) stri
 	}
 }
 
-func (b Buffer) Render(w int, h int, active bool) string {
+func (b *Buffer) Render(w int, h int, active bool) string {
 	display := []string{}
-	var group highlight.Group = highlight.Group(len(highlight.Groups))
+	if b != nil && b.Lines != nil {
+		var group highlight.Group = highlight.Group(len(highlight.Groups))
 
-	for i := 0; i < h; i++ {
-		if i >= b.LinesNum() {
-			break
-		}
-		line := (*b.Lines)[i]
-		text := ""
-		cw := 0
-		for j := 0; j < len(line.Text); j++ {
-			//get syntax group
-			if newgrp, ok := line.Match[j]; ok {
-				group = newgrp
+		for i := 0; i < h; i++ {
+			if i >= b.LinesNum() {
+				break
 			}
-			//avoiding doing logic if should skip
-			if cw <= w {
-				char := []byte{line.Text[j]}
-				//get character width
-				cw += util.StringWidth(char, 1, int(config.GlobalSettings["tabsize"].(float64)))
-				//avoid printing if we will go past renderable area
+			line := (*b.Lines)[i]
+			text := ""
+			cw := 0
+			for j := 0; j < len(line.Text); j++ {
+				//get syntax group
+				if newgrp, ok := line.Match[j]; ok {
+					group = newgrp
+				}
+				//avoiding doing logic if should skip
 				if cw <= w {
-					//print tab as spaces (show tab as tabsize)
-					if char[0] == byte('\t') {
-						char = []byte(util.Spaces(int(config.GlobalSettings["tabsize"].(float64))))
+					char := []byte{line.Text[j]}
+					//get character width
+					cw += util.StringWidth(char, 1, int(config.GlobalSettings["tabsize"].(float64)))
+					//avoid printing if we will go past renderable area
+					if cw <= w {
+						//print tab as spaces (show tab as tabsize)
+						if char[0] == byte('\t') {
+							char = []byte(util.Spaces(int(config.GlobalSettings["tabsize"].(float64))))
+						}
+						text += b.renderChar(char, group, active)
 					}
-					text += b.renderChar(char, group, active)
 				}
 			}
+			display = append(display, text)
 		}
-		display = append(display, text)
 	}
 
 	return "" + strings.Join(display, "\n")

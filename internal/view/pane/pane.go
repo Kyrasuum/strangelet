@@ -12,7 +12,10 @@ import (
 )
 
 type Pane struct {
-	active     int
+	active int
+	dirty  bool
+	frame  string
+
 	tabs       []string
 	tabContent []view.Elem
 	tabx       int
@@ -22,26 +25,26 @@ var ()
 
 const ()
 
-func NewPane() Pane {
+func NewPane() *Pane {
 	p := Pane{
 		active:     0,
+		dirty:      true,
+		frame:      "",
 		tabs:       []string{},
 		tabContent: []view.Elem{},
 	}
-	return p
+	return &p
 }
 
 func (p Pane) Init() tea.Cmd {
 	return nil
 }
 
-func (p Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd)    { return p.UpdateTyped(msg) }
-func (p Pane) UpdateI(msg tea.Msg) (interface{}, tea.Cmd) { return p.UpdateTyped(msg) }
-func (p Pane) UpdateTyped(msg tea.Msg) (Pane, tea.Cmd) {
+func (p *Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
 		cmds []tea.Cmd
 	)
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case events.CloseTabMsg:
 		if len(p.tabs) > 1 {
 			p.tabs = append(p.tabs[:p.active], p.tabs[p.active+1:]...)
@@ -49,49 +52,48 @@ func (p Pane) UpdateTyped(msg tea.Msg) (Pane, tea.Cmd) {
 			if len(p.tabs) > 0 {
 				p.active = (util.Max(0, p.active-1)) % len(p.tabs)
 			}
-			e, cmd := p.tabContent[p.active].SetActive(true)
-			p.tabContent[p.active] = e.(view.Elem)
+			cmd := p.tabContent[p.active].SetActive(true)
 			cmds = append(cmds, cmd)
 		} else {
 			cmds = append(cmds, events.Actions["CloseSplit"](msg))
 		}
+		p.Redraw(lipgloss.Size(p.frame))
 	case events.PrevTabMsg:
 		if len(p.tabs) > 0 {
-			e, cmd := p.tabContent[p.active].SetActive(false)
-			p.tabContent[p.active] = e.(view.Elem)
+			cmd := p.tabContent[p.active].SetActive(false)
 			cmds = append(cmds, cmd)
 
 			p.active = (p.active - 1 + len(p.tabs)) % len(p.tabs)
 
-			e, cmd = p.tabContent[p.active].SetActive(true)
-			p.tabContent[p.active] = e.(view.Elem)
+			cmd = p.tabContent[p.active].SetActive(true)
 			cmds = append(cmds, cmd)
+			p.Redraw(lipgloss.Size(p.frame))
 		}
 	case events.NextTabMsg:
 		if len(p.tabs) > 0 {
-			e, cmd := p.tabContent[p.active].SetActive(false)
-			p.tabContent[p.active] = e.(view.Elem)
+			cmd := p.tabContent[p.active].SetActive(false)
 			cmds = append(cmds, cmd)
 
 			p.active = (p.active + 1) % len(p.tabs)
 
-			e, cmd = p.tabContent[p.active].SetActive(true)
-			p.tabContent[p.active] = e.(view.Elem)
+			cmd = p.tabContent[p.active].SetActive(true)
 			cmds = append(cmds, cmd)
+			p.Redraw(lipgloss.Size(p.frame))
 		}
 	case events.NewTabMsg:
 		c := code.NewCode()
-		cmd := c.OpenFile("internal/view/view.go")
+		cmd := c.OpenFile(string(msg))
 		p.tabContent = append(p.tabContent, c)
-		p.tabs = append(p.tabs, "internal/view/view.go")
+		p.tabs = append(p.tabs, string(msg))
 		cmds = append(cmds, cmd)
-	case tea.MouseMsg:
-		// tea.MouseEvent(msg)
+		p.Redraw(lipgloss.Size(p.frame))
 	}
 	if len(p.tabs) > 0 {
-		e, cmd := p.tabContent[p.active].Update(msg)
-		p.tabContent[p.active] = e.(view.Elem)
-		cmds = append(cmds, cmd)
+		_, cmd := p.tabContent[p.active].Update(msg)
+		if cmd != nil {
+			p.Redraw(lipgloss.Size(p.frame))
+			cmds = append(cmds, cmd)
+		}
 	}
 
 	// Return the updated model to the Bubble Tea runtime for processing.
@@ -99,8 +101,7 @@ func (p Pane) UpdateTyped(msg tea.Msg) (Pane, tea.Cmd) {
 	return p, tea.Batch(cmds...)
 }
 
-func (p Pane) View() string { return p.ViewWH(0, 0) }
-func (p Pane) ViewWH(w, h int) string {
+func (p *Pane) Redraw(w, h int) {
 	ts := []string{}
 	tw := 0
 	for i := 0; i < len(p.tabs); i++ {
@@ -129,19 +130,35 @@ func (p Pane) ViewWH(w, h int) string {
 
 	if len(p.tabs) > 0 {
 		content := config.PaneStyle.Width(w).Height(h - 1).Render(p.tabContent[p.active].ViewWH(w, h-1))
-		return lipgloss.JoinVertical(lipgloss.Left, tabs, content)
+		p.frame = lipgloss.JoinVertical(lipgloss.Left, tabs, content)
+
 	} else {
 		content := config.PaneStyle.Width(w).Height(h - 1).Render("")
-		return lipgloss.JoinVertical(lipgloss.Left, tabs, content)
+		p.frame = lipgloss.JoinVertical(lipgloss.Left, tabs, content)
 	}
 }
 
-func (p Pane) SetActive(b bool) (interface{}, tea.Cmd) {
-	var cmd tea.Cmd = nil
-	if len(p.tabs) > 0 {
-		var e interface{}
-		e, cmd = p.tabContent[p.active].SetActive(b)
-		p.tabContent[p.active] = e.(view.Elem)
+func (p *Pane) View() string { return p.ViewWH(0, 0) }
+func (p *Pane) ViewWH(w, h int) string {
+	if p.dirty || w != lipgloss.Width(p.frame) || h != lipgloss.Height(p.frame) {
+		for i := 0; i < len(p.tabs); i++ {
+			p.tabContent[i].SetDirty()
+		}
+		p.Redraw(w, h)
+		p.dirty = false
 	}
-	return p, cmd
+	return p.frame
+}
+
+func (p *Pane) SetActive(b bool) tea.Cmd {
+	var cmd tea.Cmd = events.Actions["NOOP"]("")
+	if len(p.tabs) > 0 {
+		cmd = p.tabContent[p.active].SetActive(b)
+		p.dirty = true
+	}
+	return cmd
+}
+
+func (p *Pane) SetDirty() {
+	p.dirty = true
 }
