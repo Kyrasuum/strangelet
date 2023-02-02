@@ -10,7 +10,6 @@ binaries/
 *.so
 *.dylib
 strangelet
-strangelet.*
 
 # Test binary, built with `go test -c`
 *.test

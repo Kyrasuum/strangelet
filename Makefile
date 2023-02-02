@@ -1,17 +1,17 @@
 .PHONY: build
 #: Performs a clean run of the project
 build: deps
-	@go build -o strangelet.exe cmd/main.go
+	@go build -o strangelet cmd/main.go
 
 .PHONY: run
 #: Starts the project
 run: build
-	@./strangelet.exe
+	@./strangelet
 
 .PHONY: clean
 #: Cleans slate for docker
 clean:
-	@rm strangelet.exe
+	@rm strangelet
 
 .PHONY: deps
 #: Install dependencies for docker and targets in this makefile
